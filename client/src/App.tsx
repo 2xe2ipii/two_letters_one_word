@@ -991,6 +991,8 @@ export default function App() {
                       spellCheck={false}
                       className="w-full bg-transparent border-b-4 border-slate-700 pb-2 text-center text-5xl md:text-7xl font-black outline-none focus:border-emerald-500 transition-colors placeholder:text-slate-600 uppercase"
                     />
+
+                    <button type="submit" className="hidden" />
                   </form>
 
                   <div className="w-full flex flex-col items-center justify-start space-y-2 pt-1">
