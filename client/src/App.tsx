@@ -40,48 +40,36 @@ export default function App() {
   const [globalInput, setGlobalInput] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Focus Management: Force focus during game phases
   useEffect(() => {
     const isGameActive = ['PRE', 'PICKING', 'RACING'].includes(state.phase);
     
     if (isGameActive) {
-      // Clear input on phase change
       setGlobalInput('');
-      
-      // Small delay to ensure render, then focus
       const t = setTimeout(() => inputRef.current?.focus(), 50);
-      
-      // Re-focus loop (aggressive safety for mobile)
       const i = setInterval(() => {
         if (document.activeElement !== inputRef.current) {
           inputRef.current?.focus();
         }
       }, 1000);
-      
       return () => { clearTimeout(t); clearInterval(i); };
     }
   }, [state.phase]);
 
-  // Handle Text Changes
   const handleGlobalChange = (val: string) => {
-    // 1. Logic for Picking Phase (Auto-submit single letter)
     if (state.phase === 'PICKING') {
-      const char = val.slice(-1).toUpperCase(); // Get last char typed
+      const char = val.slice(-1).toUpperCase();
       if (/^[A-Z]$/.test(char)) {
         wrap(() => submitLetter(char));
-        setGlobalInput(''); // Reset immediately
+        setGlobalInput('');
         return;
       }
     }
-
-    // 2. Logic for Racing Phase (Store text)
     if (state.phase === 'RACING') {
       setGlobalInput(val.toUpperCase());
       sendTyping(val.length > 0);
     }
   };
 
-  // Handle "Enter" / "Go" Key
   const handleGlobalSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (state.phase === 'RACING' && globalInput.trim()) {
@@ -90,14 +78,12 @@ export default function App() {
     }
   };
 
-  // Generic wrap function
   const wrap = (fn: () => void) => {
     armAudio();
     playSfx('click');
     fn();
   };
   
-  // Refocus helper when user taps anywhere
   const ensureFocus = () => {
     if (['PRE', 'PICKING', 'RACING'].includes(state.phase)) {
       inputRef.current?.focus();
@@ -113,14 +99,14 @@ export default function App() {
   };
 
   return (
-    // Add onClick to container to capture clicks and force focus back to input
-    <div onClick={ensureFocus} className="min-h-[100dvh] pb-[env(safe-area-inset-bottom)] bg-slate-950 text-white font-sans overflow-hidden relative">
+    // CHANGE: h-[100dvh] + flex col + overflow-hidden to FORCE it to fit screen
+    <div onClick={ensureFocus} className="h-[100dvh] w-full bg-slate-950 text-white font-sans overflow-hidden flex flex-col relative">
       <ToastContainer toasts={toasts} />
 
-      {/* --- THE INVISIBLE PERSISTENT INPUT --- */}
+      {/* CHANGE: Input fixed to center to prevent scroll jumping */}
       <form 
         onSubmit={handleGlobalSubmit} 
-        className="fixed top-0 left-0 w-0 h-0 opacity-0 overflow-hidden pointer-events-none"
+        className="fixed top-1/2 left-1/2 w-px h-px opacity-0 overflow-hidden pointer-events-none -translate-x-1/2 -translate-y-1/2"
       >
          <input
            ref={inputRef}
@@ -130,57 +116,65 @@ export default function App() {
            autoCorrect="off"
            autoCapitalize="characters"
            spellCheck="false"
-           // Important for iOS not to zoom
            style={{ fontSize: '16px' }} 
          />
          <button type="submit" />
       </form>
-      {/* ----------------------------------- */}
 
       {showSound && <SoundPanel onClose={() => setShowSound(false)} {...audioProps} />}
       {state.phase === 'ROUND_RESULT' && <RoundResult state={state} />}
 
+      {/* HUD stays at top, natural height */}
       {state.phase !== 'LOBBY' && (
-        <GameHUD
-          state={state}
-          onSoundOpen={() => wrap(() => setShowSound(true))}
-          sfxMuted={audioProps.sfxMuted}
-          musicMuted={audioProps.musicMuted}
-        />
+        <div className="shrink-0">
+          <GameHUD
+            state={state}
+            onSoundOpen={() => wrap(() => setShowSound(true))}
+            sfxMuted={audioProps.sfxMuted}
+            musicMuted={audioProps.musicMuted}
+          />
+        </div>
       )}
 
-      {state.phase === 'LOBBY' && (
-        <Lobby
-          playerName={playerName}
-          setPlayerName={setPlayerName}
-          state={state}
-          onCreate={() => requireName() && wrap(createRoom)}
-          onJoin={(code) => requireName() && code && wrap(() => joinRoom(code))}
-          onQueue={() => requireName() && wrap(joinQueue)}
-          onLeaveQueue={() => wrap(leaveQueue)}
-          onReady={() => wrap(sendReady)}
-          onAccept={() => wrap(acceptMatch)}
-          onDecline={() => wrap(declineMatch)}
-          onCopy={() =>
-            wrap(async () => {
-              await navigator.clipboard.writeText(state.roomCode);
-              addToast('Code Copied');
-            })
-          }
-        />
-      )}
+      {/* Main Content Area: Fills remaining space */}
+      <div className="flex-1 relative w-full max-w-5xl mx-auto flex flex-col overflow-hidden">
+        {state.phase === 'LOBBY' && (
+          <div className="h-full overflow-y-auto">
+            <Lobby
+              playerName={playerName}
+              setPlayerName={setPlayerName}
+              state={state}
+              onCreate={() => requireName() && wrap(createRoom)}
+              onJoin={(code) => requireName() && code && wrap(() => joinRoom(code))}
+              onQueue={() => requireName() && wrap(joinQueue)}
+              onLeaveQueue={() => wrap(leaveQueue)}
+              onReady={() => wrap(sendReady)}
+              onAccept={() => wrap(acceptMatch)}
+              onDecline={() => wrap(declineMatch)}
+              onCopy={() =>
+                wrap(async () => {
+                  await navigator.clipboard.writeText(state.roomCode);
+                  addToast('Code Copied');
+                })
+              }
+            />
+          </div>
+        )}
 
-      {(state.phase === 'PRE' || state.phase === 'PICKING') && (
-        // Pass currentInput purely for visual purposes
-        <Picking state={state} />
-      )}
+        {(state.phase === 'PRE' || state.phase === 'PICKING') && (
+          <Picking state={state} />
+        )}
 
-      {state.phase === 'RACING' && (
-        // Pass currentInput purely for visual purposes
-        <Racing state={state} currentInput={globalInput} />
-      )}
+        {state.phase === 'RACING' && (
+          <Racing state={state} currentInput={globalInput} />
+        )}
 
-      {state.phase === 'GAME_OVER' && <GameOver state={state} onRematch={() => wrap(requestRematch)} />}
+        {state.phase === 'GAME_OVER' && (
+           <div className="h-full overflow-y-auto">
+              <GameOver state={state} onRematch={() => wrap(requestRematch)} />
+           </div>
+        )}
+      </div>
     </div>
   );
 }
