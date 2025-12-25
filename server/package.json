@@ -1,23 +1,27 @@
 {
-  "name": "server",
+  "name": "two-letters-server",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Game server for 2 Letters 1 Word",
+  "main": "src/server.js",
   "scripts": {
-    "start": "node index.js",
-    "dev": "nodemon index.js"
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js"
   },
-  "keywords": [],
+  "keywords": [
+    "game",
+    "socket.io",
+    "word-game"
+  ],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
     "check-word": "^1.1.0",
     "cors": "^2.8.5",
-    "express": "^5.2.1",
-    "socket.io": "^4.8.3"
+    "express": "^4.18.2",
+    "socket.io": "^4.7.4"
   },
   "devDependencies": {
-    "nodemon": "^3.1.11"
+    "nodemon": "^3.0.3"
   }
 }
