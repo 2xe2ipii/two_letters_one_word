@@ -1,44 +1,39 @@
 import { Volume2, VolumeX } from 'lucide-react';
 import type { GameState } from '../../types';
-import { socket } from '../../socketClient'; // We need this to identify "Me" in the list
+import { socket } from '../../socketClient';
 
 export function GameHUD({ state, onSoundOpen, sfxMuted, musicMuted }: { state: GameState, onSoundOpen: () => void, sfxMuted: boolean, musicMuted: boolean }) {
   
   // --- ROYALE HUD ---
   if (state.mode === 'ROYALE') {
-    // 1. Calculate Rankings
     const sorted = [...state.royalePlayers].sort((a, b) => b.score - a.score);
-    const myIndex = sorted.findIndex(p => p.id === socket.id); // Assuming socket.id matches player.id
+    const myIndex = sorted.findIndex(p => p.id === socket.id);
     const myPlayer = sorted[myIndex];
     
-    // Fallback if spectator or not found
     const myRank = myIndex !== -1 ? myIndex + 1 : '-';
     const totalPlayers = state.royalePlayers.length;
     const myScore = myPlayer?.score || 0;
 
-    // 2. Calculate Gap
     let gapText = '';
     let gapColor = 'text-slate-500';
 
     if (myIndex === 0) {
-      // I am first
       const secondPlace = sorted[1];
       const lead = secondPlace ? myScore - secondPlace.score : 0;
       gapText = `LEAD +${lead}`;
       gapColor = 'text-yellow-400';
     } else if (myIndex > 0) {
-      // I am chasing
       const target = sorted[myIndex - 1];
       const diff = target.score - myScore;
-      gapText = `TO #${myIndex}: ${diff}`; // e.g., "TO #3: 10"
+      gapText = `TO #${myIndex}: ${diff}`; 
       gapColor = 'text-red-400';
     }
 
+    // Changed: items-end -> items-center
     return (
       <div className="w-full max-w-5xl mx-auto px-4 pt-4 relative z-20">
         <div className="rounded-3xl border border-slate-800 bg-slate-900/80 backdrop-blur px-6 py-3 flex items-center justify-between">
           
-          {/* LEFT: ROUND INFO */}
           <div className="flex flex-col items-start min-w-[100px]">
             <span className="text-[10px] text-slate-400 font-black tracking-widest uppercase mb-1">ROUND</span>
             <div className="flex items-baseline gap-1">
@@ -47,7 +42,6 @@ export function GameHUD({ state, onSoundOpen, sfxMuted, musicMuted }: { state: G
             </div>
           </div>
 
-          {/* CENTER: SOUND & GAP */}
           <div className="flex flex-col items-center gap-2">
             <div className={`text-[10px] font-black tracking-[0.2em] uppercase ${gapColor} animate-pulse`}>
               {gapText}
@@ -58,7 +52,6 @@ export function GameHUD({ state, onSoundOpen, sfxMuted, musicMuted }: { state: G
             </button>
           </div>
 
-          {/* RIGHT: RANK INFO */}
           <div className="flex flex-col items-end min-w-[100px]">
             <span className="text-[10px] text-slate-400 font-black tracking-widest uppercase mb-1 flex items-center gap-1">
               MY RANK
@@ -83,9 +76,10 @@ export function GameHUD({ state, onSoundOpen, sfxMuted, musicMuted }: { state: G
   const oppScore = isP1 ? state.scores.p2 : state.scores.p1;
   const oppName = isP1 ? state.names.p2 : state.names.p1;
 
+  // Changed: items-end -> items-center for vertical centering
   return (
     <div className="w-full max-w-5xl mx-auto px-4 pt-4 relative z-20">
-      <div className="rounded-3xl border border-slate-800 bg-slate-900/60 backdrop-blur px-6 py-3 flex items-end justify-between">
+      <div className="rounded-3xl border border-slate-800 bg-slate-900/60 backdrop-blur px-6 py-3 flex items-center justify-between">
         <div className="flex flex-col items-start min-w-[120px]">
           <span className="text-[10px] text-slate-400 font-black tracking-widest uppercase">YOU</span>
           <span className="text-4xl md:text-5xl font-black text-emerald-400">{myScore}</span>

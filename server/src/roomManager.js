@@ -874,6 +874,7 @@ const finalizeMatch = (io, m) => {
 // -------------------- Royale Join --------------------
 
 const joinRoyale = (io, socket, username) => {
+  // Find open royale lobby
   let room = Object.values(rooms).find(
     (r) =>
       r.mode === MODES.ROYALE &&
@@ -881,7 +882,24 @@ const joinRoyale = (io, socket, username) => {
       computePhase(r) === PHASES.LOBBY
   );
 
-  if (!room) room = createRoom(MODES.ROYALE);
+  if (!room) {
+    room = createRoom(MODES.ROYALE);
+  }
+
+  // FIX: Check for duplicates before adding!
+  const existingPlayer = room.players.find(p => p.id === socket.id);
+  if (existingPlayer) {
+     // Player already in room, just re-emit joined event so client knows it worked
+     socket.emit("joined_room", {
+        code: room.code,
+        mode: MODES.ROYALE,
+        playerKey: existingPlayer.key,
+        hostId: room.hostId,
+     });
+     // Sync state
+     broadcastRoyaleState(io, room);
+     return;
+  }
 
   const player = {
     id: socket.id,
@@ -890,15 +908,14 @@ const joinRoyale = (io, socket, username) => {
     score: 0,
     connected: true,
     ready: false,
-
-    finishedRound: false,
-    roundPoints: 0,
   };
 
   room.players.push(player);
   socket.join(room.code);
 
-  if (room.players.length === 1) room.hostId = player.id;
+  if (room.players.length === 1) {
+    room.hostId = player.id;
+  }
 
   socket.emit("joined_room", {
     code: room.code,

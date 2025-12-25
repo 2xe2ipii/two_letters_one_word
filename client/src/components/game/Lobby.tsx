@@ -1,4 +1,4 @@
-import { Copy, Crown, Users, LogOut } from 'lucide-react';
+import { Copy, Users, LogOut } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import type { GameState } from '../../types';
 import { socket } from '../../socketClient';
@@ -7,23 +7,17 @@ interface Props {
   playerName: string;
   setPlayerName: (n: string) => void;
   state: GameState;
-
-  onCreate: () => void; // Classic Create
-  createRoyaleRoom: () => void; // Royale Create
+  onCreate: () => void;
+  createRoyaleRoom: () => void;
   onJoin: (code: string) => void;
-  onJoinRoyale: () => void; // Join Random Royale
-
+  onJoinRoyale: () => void;
   onQueue: () => void;
   onLeaveQueue: () => void;
-
   onReady: () => void;
   onCopy: () => void;
   onAccept: () => void;
   onDecline: () => void;
-
   onStartRoyale: () => void;
-
-  // NEW
   onLeaveRoom: () => void;
 }
 
@@ -55,6 +49,9 @@ export function Lobby({
   const [matchTimeLeft, setMatchTimeLeft] = useState(10);
   const [hasAccepted, setHasAccepted] = useState(false);
 
+  // Prevent spam clicks
+  const [isJoining, setIsJoining] = useState(false);
+
   const [onlineCount, setOnlineCount] = useState(0);
 
   useEffect(() => {
@@ -63,6 +60,17 @@ export function Lobby({
     socket.emit('request_online_count');
     return () => {
       socket.off('online_count', onCount);
+    };
+  }, []);
+
+  // Reset joining state
+  useEffect(() => {
+    const resetJoin = () => setIsJoining(false);
+    socket.on('error_message', resetJoin);
+    socket.on('joined_room', resetJoin);
+    return () => {
+      socket.off('error_message', resetJoin);
+      socket.off('joined_room', resetJoin);
     };
   }, []);
 
@@ -103,6 +111,13 @@ export function Lobby({
     return `${m}:${sec.toString().padStart(2, '0')}`;
   };
 
+  const handleJoinRoyale = () => {
+    if (isJoining) return;
+    setIsJoining(true);
+    onJoinRoyale();
+    setTimeout(() => setIsJoining(false), 3000);
+  };
+
   // --- MATCH FOUND OVERLAY ---
   if (state.pendingMatch) {
     return (
@@ -112,7 +127,6 @@ export function Lobby({
             <h2 className="text-3xl font-black italic text-emerald-400 tracking-tighter">MATCH FOUND</h2>
             <p className="text-slate-500 text-sm font-bold tracking-widest uppercase">Accept to play</p>
           </div>
-
           <div className="relative w-32 h-32 mx-auto flex items-center justify-center">
             <svg className="absolute inset-0 w-full h-full -rotate-90">
               <circle cx="64" cy="64" r="60" stroke="#1e293b" strokeWidth="8" fill="none" />
@@ -130,7 +144,6 @@ export function Lobby({
             </svg>
             <span className="text-4xl font-black text-white">{matchTimeLeft}</span>
           </div>
-
           {!hasAccepted ? (
             <div className="grid grid-cols-2 gap-4">
               <button
@@ -161,50 +174,44 @@ export function Lobby({
 
   // --- ROOM LOBBY (Inside Room) ---
   if (state.roomCode) {
-    // ROYALE LOBBY
     if (state.mode === 'ROYALE') {
       const me = state.royalePlayers.find((p) => p.id === socket.id);
       const isHost = me?.isHost;
 
       return (
-        <div className="min-h-[100dvh] flex items-center justify-center py-10 px-4">
-          <div className="w-full max-w-2xl rounded-[2rem] border border-slate-800 bg-slate-900/60 backdrop-blur px-6 py-8 shadow-2xl space-y-6 flex flex-col h-[70vh]">
+        // FIX: items-start + pt-20 (instead of items-center)
+        <div className="h-full flex items-start justify-center p-4 pt-20 md:pt-32">
+          <div className="w-full max-w-2xl rounded-[2rem] border border-slate-800 bg-slate-900/60 backdrop-blur px-6 py-8 shadow-2xl space-y-6 flex flex-col max-h-[80vh]">
             <div className="shrink-0 flex items-center justify-between border-b border-white/5 pb-4">
-              {/* Header Left */}
               <div className="flex items-center gap-3">
                 <div className="p-3 bg-purple-500/20 rounded-xl text-purple-400">
-                  <Crown size={24} />
+                  <Copy size={24} />
                 </div>
                 <div>
                   <div className="text-[10px] font-black tracking-widest uppercase text-slate-400">ROYALE LOBBY</div>
                   <div className="text-2xl font-black text-white">
-                    CODE: <span className="text-purple-400 font-mono tracking-wider">{state.roomCode}</span>
+                    CODE:{' '}
+                    <span className="text-purple-400 font-mono tracking-wider">{state.roomCode}</span>
                   </div>
                 </div>
               </div>
-
-              {/* Header Right */}
               <div className="flex items-center gap-2">
                 <button
                   onClick={onCopy}
                   className="p-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-400 hover:text-white"
-                  title="Copy code"
                 >
                   <Copy size={20} />
                 </button>
-
-                {/* NEW LEAVE BUTTON */}
                 <button
                   onClick={onLeaveRoom}
                   className="p-2 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500 hover:text-white transition"
-                  title="Leave room"
                 >
                   <LogOut size={20} />
                 </button>
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto space-y-2 pr-2">
+            <div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
               {state.royalePlayers.map((p) => (
                 <div
                   key={p.id}
@@ -222,7 +229,7 @@ export function Lobby({
                       {p.name} {p.id === socket.id && '(YOU)'}
                     </span>
                   </div>
-                  {p.isHost && <Crown size={16} className="text-yellow-500" />}
+                  {p.isHost && <Copy size={16} className="text-yellow-500" />}
                 </div>
               ))}
             </div>
@@ -238,7 +245,7 @@ export function Lobby({
                       : 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-900/40'
                   }`}
                 >
-                  {state.royalePlayers.length < 2 ? 'WAITING FOR PLAYERS (MIN 2)' : 'START ROYALE'}
+                  {state.royalePlayers.length < 2 ? 'Minimum: 2 Players' : 'START ROYALE'}
                 </button>
               ) : (
                 <div className="text-center text-slate-500 font-bold animate-pulse uppercase tracking-widest text-xs">
@@ -251,20 +258,19 @@ export function Lobby({
       );
     }
 
-    // CLASSIC LOBBY (1v1)
+    // Classic 1v1 Lobby
     const isP1 = state.myRole === 'p1';
     const meReady = isP1 ? state.readyStatus.p1 : state.readyStatus.p2;
     const oppReady = isP1 ? state.readyStatus.p2 : state.readyStatus.p1;
     const oppName = isP1 ? state.names.p2 : state.names.p1;
 
     return (
-      <div className="min-h-[100dvh] flex items-center justify-center py-10 px-4">
+      // FIX: items-start + pt-20
+      <div className="h-full flex items-start justify-center p-4 pt-20 md:pt-32">
         <div className="w-full max-w-md rounded-[2rem] border border-slate-800 bg-slate-900/60 backdrop-blur px-6 py-8 shadow-2xl text-center space-y-6 relative">
-          {/* NEW LEAVE BUTTON */}
           <button
             onClick={onLeaveRoom}
             className="absolute top-4 right-4 p-2 text-slate-600 hover:text-red-400 transition"
-            title="Leave room"
           >
             <LogOut size={20} />
           </button>
@@ -276,7 +282,6 @@ export function Lobby({
               <button
                 onClick={onCopy}
                 className="p-2 rounded-xl bg-slate-800/70 border border-slate-700 hover:bg-slate-700 text-white"
-                title="Copy code"
               >
                 <Copy size={18} />
               </button>
@@ -294,7 +299,6 @@ export function Lobby({
                 {meReady ? 'READY' : 'NOT READY'}
               </div>
             </div>
-
             <div
               className={`p-4 rounded-2xl border ${
                 oppReady ? 'bg-emerald-500/10 border-emerald-500/50' : 'bg-slate-800/50 border-slate-700'
@@ -325,7 +329,8 @@ export function Lobby({
 
   // --- MAIN MENU ---
   return (
-    <div className="min-h-[100dvh] flex items-center justify-center py-10 px-4">
+    // FIX: items-start + pt-20
+    <div className="h-full flex items-start justify-center p-4 pt-20 md:pt-32">
       <div className="w-full max-w-md relative">
         <div className="absolute -top-10 right-4 flex items-center gap-2 text-slate-500/80">
           <Users size={16} />
@@ -408,11 +413,9 @@ export function Lobby({
                     JOIN
                   </button>
                 </div>
-
                 <div className="flex items-center gap-3 text-slate-600 text-xs font-bold uppercase tracking-widest my-2">
                   <div className="h-px bg-slate-800 flex-1" /> OR <div className="h-px bg-slate-800 flex-1" />
                 </div>
-
                 <button
                   onClick={onCreate}
                   className="w-full py-4 rounded-2xl font-black text-xl bg-emerald-500 hover:bg-emerald-400 text-white shadow-lg"
@@ -472,18 +475,22 @@ export function Lobby({
                 <p className="text-purple-200/50 text-xs font-bold uppercase tracking-widest mb-4">
                   Massively Multiplayer Word Race
                 </p>
-
                 <button
-                  onClick={onJoinRoyale}
-                  className="w-full py-4 rounded-2xl font-black text-xl bg-purple-600 hover:bg-purple-500 text-white shadow-lg shadow-purple-900/30 flex items-center justify-center gap-2"
+                  onClick={handleJoinRoyale}
+                  disabled={isJoining}
+                  className="w-full py-4 rounded-2xl font-black text-xl bg-purple-600 hover:bg-purple-500 text-white shadow-lg shadow-purple-900/30 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-wait"
                 >
-                  <Users size={20} /> JOIN RANDOM LOBBY
+                  {isJoining ? (
+                    'JOINING...'
+                  ) : (
+                    <>
+                      <Users size={20} /> JOIN RANDOM LOBBY
+                    </>
+                  )}
                 </button>
-
                 <div className="flex items-center gap-3 text-slate-600 text-xs font-bold uppercase tracking-widest my-2">
                   <div className="h-px bg-slate-800 flex-1" /> OR <div className="h-px bg-slate-800 flex-1" />
                 </div>
-
                 <button
                   onClick={createRoyaleRoom}
                   className="w-full py-3 rounded-2xl font-bold text-lg bg-slate-800 border-2 border-slate-700 hover:bg-slate-700 text-purple-300"
