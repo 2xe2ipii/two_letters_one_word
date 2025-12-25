@@ -22,9 +22,10 @@ export function RoundResult({ state }: { state: GameState }) {
       ? 'text-emerald-400' 
       : 'text-red-400';
 
+  // z-[100] ensures it sits on top of everything including HUD
   return (
-    <div className={`fixed inset-0 z-50 flex flex-col items-center justify-center ${bgClass} transition-colors duration-500`}>
-      <div className="text-center space-y-6 animate-in zoom-in-90 duration-300">
+    <div className={`fixed inset-0 z-[100] flex flex-col items-center justify-center ${bgClass} transition-colors duration-500`}>
+      <div className="text-center space-y-6 animate-in zoom-in-90 duration-300 px-4">
         <div className="text-xs font-black tracking-[0.5em] uppercase text-white/50">
           {noPoint ? 'TIME UP' : isMe ? 'POINT SCORED' : 'OPPONENT SCORED'}
         </div>
@@ -36,7 +37,7 @@ export function RoundResult({ state }: { state: GameState }) {
         ) : (
           <div className="space-y-4">
             <div className="bg-black/30 px-8 py-6 rounded-3xl border border-white/10 backdrop-blur-sm">
-              <div className={`text-6xl md:text-8xl font-black ${textClass} tracking-wider`}>
+              <div className={`text-5xl md:text-8xl font-black ${textClass} tracking-wider break-all`}>
                 {word?.toUpperCase()}
               </div>
             </div>

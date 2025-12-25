@@ -1,9 +1,50 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import type { GameState } from '../../types';
 import { FloatingFeedback } from './FloatingFeedback';
 
+interface CloudLog {
+  id: number;
+  text: string;
+  isMe: boolean;
+  isError: boolean;
+  top: number; // Random vertical position %
+}
+
 export function Racing({ state, currentInput }: { state: GameState; currentInput: string }) {
   const [now, setNow] = useState(Date.now());
+  
+  // CLOUD LOGIC
+  const [clouds, setClouds] = useState<CloudLog[]>([]);
+  
+  // FIX: Changed type from <string | null> to <number | null> to match log IDs
+  const lastLogIdRef = useRef<number | null>(null);
+
+  // Watch for new Battle Logs and spawn clouds
+  useEffect(() => {
+    if (state.battleLog.length === 0) return;
+    
+    const latest = state.battleLog[state.battleLog.length - 1];
+    // Only add if we haven't seen this specific log ID yet
+    if (latest.id !== lastLogIdRef.current) {
+      lastLogIdRef.current = latest.id;
+      
+      const newCloud: CloudLog = {
+        id: Date.now(), // Local animation ID
+        text: latest.text,
+        isMe: latest.by === state.myRole,
+        isError: latest.isError,
+        // Spawn randomly between 15% and 45% of screen height to avoid keyboard
+        top: 15 + Math.random() * 30 
+      };
+
+      setClouds(prev => [...prev, newCloud]);
+
+      // Cleanup after animation (4s)
+      setTimeout(() => {
+        setClouds(prev => prev.filter(c => c.id !== newCloud.id));
+      }, 4000);
+    }
+  }, [state.battleLog, state.myRole]);
 
   useEffect(() => {
     const i = setInterval(() => setNow(Date.now()), 50);
@@ -13,37 +54,36 @@ export function Racing({ state, currentInput }: { state: GameState; currentInput
   const ratio = state.roundEndsAt ? Math.max(0, Math.min(1, (state.roundEndsAt - now) / 20000)) : 0;
   
   return (
-    <div className="h-full w-full relative">
+    <div className="h-full w-full relative overflow-hidden">
       
-      {/* --- LAYER 1: BATTLE LOG (BACKGROUND OVERLAY) --- 
-          This is absolutely positioned so it takes 0 space. 
-          It won't push anything. It just sits there.
-      */}
-      <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none p-4 flex flex-col justify-end pb-20 opacity-40">
-        {/* We just show a few recent logs floating in the background */}
-        <div className="flex flex-col gap-2 items-center">
-            {state.battleLog.slice(-5).map(log => (
-                <div key={log.id} className={`text-sm font-black uppercase ${
-                    log.by === state.myRole 
-                    ? (log.isError ? 'text-red-500' : 'text-emerald-500') 
-                    : 'text-slate-500'
-                }`}>
-                    {log.text}
-                </div>
-            ))}
-        </div>
+      {/* --- LAYER 1: FLOATING CLOUDS (Battle Log) --- */}
+      {/* These animate smoothly across the screen in the 'safe zone' */}
+      <div className="absolute inset-0 z-0 pointer-events-none">
+        {clouds.map((cloud) => (
+          <div
+            key={cloud.id}
+            className={`absolute whitespace-nowrap text-xl md:text-2xl font-black uppercase px-4 py-2 rounded-xl backdrop-blur-sm border shadow-xl animate-[slideRight_4s_linear_forwards] ${
+              cloud.isMe 
+                ? (cloud.isError ? 'bg-red-500/20 border-red-500/50 text-red-200' : 'bg-emerald-500/20 border-emerald-500/50 text-emerald-200')
+                : 'bg-slate-800/60 border-slate-600 text-slate-400'
+            }`}
+            style={{ 
+              top: `${cloud.top}%`,
+              // Starting slightly off-screen left
+              left: '-20%' 
+            }}
+          >
+            {cloud.isMe ? '' : 'OPP: '} {cloud.text}
+          </div>
+        ))}
       </div>
 
-      {/* --- LAYER 2: MAIN GAME UI (FOREGROUND) --- 
-          This is what matters. It uses standard flow.
-          It is top-aligned (pt-4) and will NEVER move up because 
-          the Battle Log isn't pushing it.
-      */}
-      <div className="relative z-10 w-full h-full flex flex-col justify-start items-center pt-4 px-4 gap-6">
+      {/* --- LAYER 2: MAIN GAME UI (FOREGROUND) --- */}
+      <div className="relative z-10 w-full h-full flex flex-col justify-start items-center pt-6 px-4 gap-6">
         
         {/* TIMER */}
         <FloatingFeedback />
-        <div className="w-full max-w-xl shrink-0 h-2 bg-slate-800 rounded-full overflow-hidden border border-slate-700 shadow-inner">
+        <div className="w-full max-w-xl shrink-0 h-3 bg-slate-800 rounded-full overflow-hidden border border-slate-700 shadow-inner">
             <div className="h-full bg-cyan-400 transition-[width] duration-75 ease-linear" style={{ width: `${ratio * 100}%` }} />
         </div>
 
@@ -58,7 +98,7 @@ export function Racing({ state, currentInput }: { state: GameState; currentInput
 
         {/* INPUT BOX */}
         <div className="shrink-0 w-full max-w-xl">
-            <div className="bg-slate-900/90 backdrop-blur-xl rounded-2xl px-4 py-4 border border-slate-700 shadow-2xl min-h-[80px] flex items-center justify-center relative overflow-hidden">
+            <div className="bg-slate-900/90 backdrop-blur-xl rounded-2xl px-4 py-4 border border-slate-700 shadow-2xl min-h-[90px] flex items-center justify-center relative overflow-hidden">
                 {/* Visual Flair for Typing */}
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skew-x-12 opacity-20 pointer-events-none" />
                 
@@ -74,7 +114,7 @@ export function Racing({ state, currentInput }: { state: GameState; currentInput
 
             {/* Anxiety Overlay */}
             {state.opponentTyping && (
-            <div className="flex justify-center mt-2">
+            <div className="flex justify-center mt-4">
                 <div className="bg-red-500/20 border border-red-500/50 text-red-300 px-3 py-1 rounded-full text-[10px] font-black tracking-widest animate-pulse">
                 OPPONENT IS TYPING...
                 </div>
@@ -82,6 +122,16 @@ export function Racing({ state, currentInput }: { state: GameState; currentInput
             )}
         </div>
       </div>
+
+      {/* Style for the animation */}
+      <style>{`
+        @keyframes slideRight {
+          0% { transform: translateX(0); opacity: 0; }
+          10% { opacity: 1; }
+          80% { opacity: 1; }
+          100% { transform: translateX(120vw); opacity: 0; }
+        }
+      `}</style>
     </div>
   );
 }

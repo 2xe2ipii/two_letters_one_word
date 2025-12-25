@@ -46,19 +46,13 @@ export default function App() {
     const needsKeyboard = activePhases.includes(state.phase);
     
     if (needsKeyboard) {
-      // Clear input when phase switches (e.g. Picking -> Racing)
       setGlobalInput('');
-      
-      // Force Focus immediately
       const t = setTimeout(() => inputRef.current?.focus(), 10);
-      
-      // Safety Loop: Ensure keyboard stays up
       const i = setInterval(() => {
         if (document.activeElement !== inputRef.current) {
           inputRef.current?.focus();
         }
       }, 500);
-      
       return () => { clearTimeout(t); clearInterval(i); };
     } else {
       inputRef.current?.blur();
@@ -66,7 +60,6 @@ export default function App() {
   }, [state.phase]);
 
   const handleGlobalChange = (val: string) => {
-    // Picking Logic
     if (state.phase === 'PICKING') {
       const char = val.slice(-1).toUpperCase(); 
       if (/^[A-Z]$/.test(char)) {
@@ -75,7 +68,6 @@ export default function App() {
         return;
       }
     }
-    // Racing Logic
     if (state.phase === 'RACING') {
       setGlobalInput(val.toUpperCase());
       sendTyping(val.length > 0);
@@ -111,11 +103,10 @@ export default function App() {
   };
 
   return (
-    // FIX: fixed inset-0 prevents body scrolling. Flex column for structure.
     <div onClick={ensureFocus} className="fixed inset-0 bg-slate-950 text-white font-sans overflow-hidden flex flex-col">
       <ToastContainer toasts={toasts} />
 
-      {/* INVISIBLE INPUT: Anchored to top-left to prevent browser scroll jumping */}
+      {/* INVISIBLE INPUT (ANCHORED TOP) */}
       <form 
         onSubmit={handleGlobalSubmit} 
         className="fixed top-0 left-0 w-px h-px opacity-0 overflow-hidden pointer-events-none"
@@ -135,11 +126,9 @@ export default function App() {
 
       {showSound && <SoundPanel onClose={() => setShowSound(false)} {...audioProps} />}
       
-      {state.phase === 'ROUND_RESULT' && <RoundResult state={state} />}
-
-      {/* TOP HUD: Always visible at top */}
+      {/* TOP HUD */}
       {state.phase !== 'LOBBY' && (
-        <div className="shrink-0 z-50 w-full bg-slate-950/80 backdrop-blur-md border-b border-white/5">
+        <div className="shrink-0 z-40 w-full bg-slate-950/80 backdrop-blur-md border-b border-white/5">
           <GameHUD
             state={state}
             onSoundOpen={() => wrap(() => setShowSound(true))}
@@ -149,7 +138,7 @@ export default function App() {
         </div>
       )}
 
-      {/* GAME AREA: Fills remaining space. justify-start ensures top alignment. */}
+      {/* GAME AREA */}
       <div className="flex-1 relative w-full flex flex-col justify-start min-h-0">
         
         {state.phase === 'LOBBY' && (
@@ -184,6 +173,9 @@ export default function App() {
            </div>
         )}
       </div>
+
+      {/* RESULT SCREEN: Z-100 ENSURES IT COVERS EVERYTHING */}
+      {state.phase === 'ROUND_RESULT' && <RoundResult state={state} />}
     </div>
   );
 }
