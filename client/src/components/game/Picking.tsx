@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
 import type { GameState } from '../../types';
 
-export function Picking({ state, onSubmit }: { state: GameState; onSubmit: (l: string) => void }) {
+export function Picking({ state }: { state: GameState }) {
   const [now, setNow] = useState(Date.now());
-  
   const target = state.phase === 'PRE' ? state.preEndsAt : state.pickEndsAt;
   const duration = state.phase === 'PRE' ? 3000 : 5000;
   
@@ -32,15 +31,11 @@ export function Picking({ state, onSubmit }: { state: GameState; onSubmit: (l: s
           {state.phase === 'PICKING' && (
             <div className="flex items-center justify-center">
               {!state.lockedLetter ? (
-                <input
-                  autoFocus
-                  maxLength={1}
-                  className="w-32 h-32 bg-slate-800/70 border-4 border-slate-700 rounded-3xl text-center text-8xl font-black uppercase focus:border-emerald-500 outline-none text-white caret-transparent"
-                  onChange={(e) => {
-                    const val = e.target.value.toUpperCase();
-                    if (/^[A-Z]$/.test(val)) onSubmit(val);
-                  }}
-                />
+                // --- VISUAL PLACEHOLDER ONLY (Actual input is in App.tsx) ---
+                <div className="w-32 h-32 bg-slate-800/70 border-4 border-slate-700 rounded-3xl flex items-center justify-center">
+                   {/* Blinking cursor to indicate readiness */}
+                   <div className="w-1 h-16 bg-slate-500 animate-pulse" />
+                </div>
               ) : (
                 <div className="w-32 h-32 bg-slate-800/70 border-4 border-emerald-600/70 rounded-3xl flex items-center justify-center">
                   <div className="text-8xl font-black text-emerald-300">{state.lockedLetter}</div>

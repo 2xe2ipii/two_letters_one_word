@@ -2,31 +2,17 @@ import { useEffect, useRef, useState } from 'react';
 import type { GameState } from '../../types';
 import { FloatingFeedback } from './FloatingFeedback';
 
-export function Racing({ state, onSubmit, onTyping }: { state: GameState; onSubmit: (w: string) => void; onTyping: (t: boolean) => void }) {
-  const [input, setInput] = useState('');
+// New Prop: currentInput
+export function Racing({ state, currentInput }: { state: GameState; currentInput: string }) {
   const [now, setNow] = useState(Date.now());
-  const inputRef = useRef<HTMLInputElement>(null);
   const logEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const i = setInterval(() => setNow(Date.now()), 50);
-    setTimeout(() => inputRef.current?.focus(), 50);
     return () => clearInterval(i);
   }, []);
 
   useEffect(() => { logEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [state.battleLog]);
-
-  const handleChange = (val: string) => {
-    setInput(val);
-    onTyping(val.length > 0);
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim()) return;
-    onSubmit(input.trim());
-    setInput('');
-  };
 
   const ratio = state.roundEndsAt ? Math.max(0, Math.min(1, (state.roundEndsAt - now) / 20000)) : 0;
   
@@ -47,17 +33,22 @@ export function Racing({ state, onSubmit, onTyping }: { state: GameState; onSubm
         ))}
       </div>
 
-      {/* Input Area */}
+      {/* Input Display Area (VISUAL ONLY) */}
       <div className="relative">
-        <form onSubmit={handleSubmit} className="bg-slate-900/80 backdrop-blur rounded-3xl px-4 py-6 border border-slate-800 shadow-2xl">
-          <input
-            ref={inputRef}
-            value={input}
-            onChange={(e) => handleChange(e.target.value)}
-            placeholder="TYPE WORD"
-            className="w-full bg-transparent border-b-4 border-slate-700 pb-2 text-center text-6xl md:text-7xl font-black outline-none focus:border-emerald-500 text-white uppercase placeholder:text-slate-700 transition-colors"
-          />
-        </form>
+        <div className="bg-slate-900/80 backdrop-blur rounded-3xl px-4 py-6 border border-slate-800 shadow-2xl min-h-[100px] flex items-center justify-center">
+            
+            {/* Render the text from App.tsx */}
+            <span className="text-6xl md:text-7xl font-black text-white uppercase break-all">
+                {currentInput}
+                {/* Simulated Cursor */}
+                <span className="inline-block w-1 h-12 md:h-16 bg-emerald-500 animate-[pulse_0.7s_infinite] align-middle ml-1" />
+            </span>
+            
+            {!currentInput && (
+                <span className="absolute text-slate-700 text-4xl font-black select-none pointer-events-none">TYPE WORD</span>
+            )}
+
+        </div>
 
         {/* Typing Anxiety Overlay */}
         {state.opponentTyping && (
@@ -69,7 +60,7 @@ export function Racing({ state, onSubmit, onTyping }: { state: GameState; onSubm
         )}
       </div>
 
-      {/* Log - Separated by Side */}
+      {/* Log */}
       <div className="flex flex-col space-y-2 pt-2 h-40 overflow-y-auto px-2 mask-linear">
         {state.battleLog.map((log) => {
           const isMe = log.by === state.myRole;
