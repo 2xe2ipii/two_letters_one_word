@@ -1,3 +1,4 @@
+// utils.js
 const checkWord = require('check-word');
 const words = checkWord('en');
 
@@ -17,7 +18,7 @@ const generateRoomCode = (existingRooms) => {
   return code;
 };
 
-const validateMove = (word, p1Letter, p2Letter, minLength) => {
+const validateMove = (word, letter1, letter2, minLength) => {
   const cleanWord = String(word || '').trim().toLowerCase();
 
   if (cleanWord.length < minLength) {
@@ -28,8 +29,8 @@ const validateMove = (word, p1Letter, p2Letter, minLength) => {
     return { isValid: false, reason: 'Not a word' };
   }
 
-  const a = String(p1Letter || '').toLowerCase();
-  const b = String(p2Letter || '').toLowerCase();
+  const a = String(letter1 || '').toLowerCase();
+  const b = String(letter2 || '').toLowerCase();
 
   const matches =
     (cleanWord.startsWith(a) && cleanWord.endsWith(b)) ||

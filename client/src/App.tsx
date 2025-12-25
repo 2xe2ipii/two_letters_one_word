@@ -22,7 +22,10 @@ export default function App() {
   const {
     state,
     createRoom,
+    createRoyaleRoom,
     joinRoom,
+    joinRoyale,
+    startRoyale,
     joinQueue,
     leaveQueue,
     sendReady,
@@ -32,19 +35,20 @@ export default function App() {
     requestRematch,
     acceptMatch,
     declineMatch,
+    leaveRoom, // FIX: you used leaveRoom below but never destructured it
   } = useGameSocket(playerName, playSfx, addToast);
 
   const [showSound, setShowSound] = useState(false);
-  
+
   // --- PERSISTENT INPUT STATE ---
   const [globalInput, setGlobalInput] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
   // --- FOCUS MANAGEMENT ---
   useEffect(() => {
-    const activePhases = ['PRE', 'PICKING', 'RACING'];
-    const needsKeyboard = activePhases.includes(state.phase);
-    
+    const activePhases = ['PRE', 'PICKING', 'RACING'] as const;
+    const needsKeyboard = activePhases.includes(state.phase as any);
+
     if (needsKeyboard) {
       setGlobalInput('');
       const t = setTimeout(() => inputRef.current?.focus(), 10);
@@ -53,24 +57,35 @@ export default function App() {
           inputRef.current?.focus();
         }
       }, 500);
-      return () => { clearTimeout(t); clearInterval(i); };
+      return () => {
+        clearTimeout(t);
+        clearInterval(i);
+      };
     } else {
       inputRef.current?.blur();
     }
   }, [state.phase]);
 
+  const wrap = (fn: () => void) => {
+    armAudio();
+    playSfx('click');
+    fn();
+  };
+
   const handleGlobalChange = (val: string) => {
     if (state.phase === 'PICKING') {
-      const char = val.slice(-1).toUpperCase(); 
+      const char = val.slice(-1).toUpperCase();
       if (/^[A-Z]$/.test(char)) {
         wrap(() => submitLetter(char));
         setGlobalInput('');
         return;
       }
     }
+
     if (state.phase === 'RACING') {
-      setGlobalInput(val.toUpperCase());
-      sendTyping(val.length > 0);
+      const next = val.toUpperCase();
+      setGlobalInput(next);
+      sendTyping(next.length > 0); // FIX: was using raw `val.length`
     }
   };
 
@@ -82,12 +97,6 @@ export default function App() {
     }
   };
 
-  const wrap = (fn: () => void) => {
-    armAudio();
-    playSfx('click');
-    fn();
-  };
-  
   const ensureFocus = () => {
     if (['PRE', 'PICKING', 'RACING'].includes(state.phase)) {
       inputRef.current?.focus();
@@ -106,27 +115,25 @@ export default function App() {
     <div onClick={ensureFocus} className="fixed inset-0 bg-slate-950 text-white font-sans overflow-hidden flex flex-col">
       <ToastContainer toasts={toasts} />
 
-      {/* INVISIBLE INPUT (ANCHORED TOP) */}
-      <form 
-        onSubmit={handleGlobalSubmit} 
+      <form
+        onSubmit={handleGlobalSubmit}
         className="fixed top-0 left-0 w-px h-px opacity-0 overflow-hidden pointer-events-none"
       >
-         <input
-           ref={inputRef}
-           value={globalInput}
-           onChange={(e) => handleGlobalChange(e.target.value)}
-           autoComplete="off"
-           autoCorrect="off"
-           autoCapitalize="characters"
-           spellCheck="false"
-           style={{ fontSize: '16px' }} 
-         />
-         <button type="submit" />
+        <input
+          ref={inputRef}
+          value={globalInput}
+          onChange={(e) => handleGlobalChange(e.target.value)}
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="characters"
+          spellCheck="false"
+          style={{ fontSize: '16px' }}
+        />
+        <button type="submit" />
       </form>
 
       {showSound && <SoundPanel onClose={() => setShowSound(false)} {...audioProps} />}
-      
-      {/* TOP HUD */}
+
       {state.phase !== 'LOBBY' && (
         <div className="shrink-0 z-40 w-full bg-slate-950/80 backdrop-blur-md border-b border-white/5">
           <GameHUD
@@ -138,9 +145,7 @@ export default function App() {
         </div>
       )}
 
-      {/* GAME AREA */}
       <div className="flex-1 relative w-full flex flex-col justify-start min-h-0">
-        
         {state.phase === 'LOBBY' && (
           <div className="h-full overflow-y-auto w-full pt-10">
             <Lobby
@@ -148,33 +153,38 @@ export default function App() {
               setPlayerName={setPlayerName}
               state={state}
               onCreate={() => requireName() && wrap(createRoom)}
-              onJoin={(code) => requireName() && code && wrap(() => joinRoom(code))}
+              createRoyaleRoom={() => requireName() && wrap(createRoyaleRoom)}
+              onJoin={(code) => requireName() && !!code && wrap(() => joinRoom(code))}
+              onJoinRoyale={() => requireName() && wrap(() => joinRoyale())}
               onQueue={() => requireName() && wrap(joinQueue)}
               onLeaveQueue={() => wrap(leaveQueue)}
               onReady={() => wrap(sendReady)}
+              onStartRoyale={() => wrap(startRoyale)}
               onAccept={() => wrap(acceptMatch)}
               onDecline={() => wrap(declineMatch)}
-              onCopy={() => wrap(async () => { await navigator.clipboard.writeText(state.roomCode); addToast('Code Copied'); })}
+              onCopy={() =>
+                wrap(async () => {
+                  if (!state.roomCode) return;
+                  await navigator.clipboard.writeText(state.roomCode);
+                  addToast('Code Copied');
+                })
+              }
+              onLeaveRoom={() => wrap(leaveRoom)}
             />
           </div>
         )}
 
-        {(state.phase === 'PRE' || state.phase === 'PICKING') && (
-          <Picking state={state} />
-        )}
+        {(state.phase === 'PRE' || state.phase === 'PICKING') && <Picking state={state} />}
 
-        {state.phase === 'RACING' && (
-          <Racing state={state} currentInput={globalInput} />
-        )}
+        {state.phase === 'RACING' && <Racing state={state} currentInput={globalInput} />}
 
         {state.phase === 'GAME_OVER' && (
-           <div className="h-full overflow-y-auto w-full pt-10">
-              <GameOver state={state} onRematch={() => wrap(requestRematch)} />
-           </div>
+          <div className="h-full overflow-y-auto w-full pt-10">
+            <GameOver state={state} onRematch={() => wrap(requestRematch)} />
+          </div>
         )}
       </div>
 
-      {/* RESULT SCREEN: Z-100 ENSURES IT COVERS EVERYTHING */}
       {state.phase === 'ROUND_RESULT' && <RoundResult state={state} />}
     </div>
   );

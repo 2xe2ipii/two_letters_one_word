@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-// import io, { Socket } from 'socket.io-client';
 import { socket } from '../socketClient';
 import confetti from 'canvas-confetti';
 import type {
@@ -11,9 +10,6 @@ import type {
   Scores,
   ReadyStatus
 } from '../types';
-
-// const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3001';
-// const socket: Socket = io(SERVER_URL);
 
 const cleanName = (s: string) => s.trim().replace(/\s+/g, ' ').slice(0, 16);
 
@@ -42,9 +38,13 @@ export function useGameSocket(
     roundResult: null,
     matchWord: '',
     rematchStatus: null,
-
-    // NEW: matchmaking accept/decline overlay
     pendingMatch: null,
+
+    // Royale State Defaults
+    mode: '1v1',
+    royalePlayers: [],
+    currentRound: 0,
+    totalRounds: 0
   });
 
   const stateRef = useRef(state);
@@ -85,11 +85,42 @@ export function useGameSocket(
       roundResult: null,
       rematchStatus: null,
       pendingMatch: null,
+
+      // Royale Reset
+      mode: '1v1',
+      royalePlayers: [],
+      currentRound: 0,
+      totalRounds: 0
     }));
   };
 
-  const createRoom = () => socket.emit('create_room');
+  // -------------------------
+  // Emits
+  // -------------------------
+
+  const createRoom = () => socket.emit('create_room'); // Default 1v1
+  
+  // FIX: This was missing from the export list below
+  const createRoyaleRoom = () => socket.emit('create_room', { mode: 'ROYALE' });
+
   const joinRoom = (code: string) => socket.emit('join_room', code);
+
+  const joinRoyale = () => {
+    socket.emit('join_royale', { username: playerNameRef.current });
+  };
+
+  const startRoyale = () => {
+    socket.emit('start_royale', { roomCode: stateRef.current.roomCode });
+  };
+
+  // FIX: Explicit leave room action
+  const leaveRoom = () => {
+    const { roomCode } = stateRef.current;
+    if (roomCode) {
+        socket.emit('leave_room', { roomCode });
+    }
+    clearSession();
+  };
 
   const joinQueue = () => socket.emit('join_queue');
   const leaveQueue = () => socket.emit('leave_queue');
@@ -142,6 +173,10 @@ export function useGameSocket(
     socket.emit('request_rematch', { roomCode, playerKey });
   };
 
+  // -------------------------
+  // Listeners
+  // -------------------------
+
   useEffect(() => {
     const tryAutoRejoin = () => {
       const raw = localStorage.getItem('wr_session');
@@ -154,9 +189,16 @@ export function useGameSocket(
 
     socket.on('connect', tryAutoRejoin);
 
-    // IMPORTANT: when room is created/joined/rejoined, clear pendingMatch overlay
-    const onJoin = ({ code, role, playerKey }: any) => {
-      updateState({ roomCode: code, myRole: role, playerKey, pendingMatch: null });
+    const onJoin = ({ code, role, playerKey, mode }: any) => {
+      const isRoyale = String(mode || '').toUpperCase() === 'ROYALE';
+      updateState({
+        roomCode: code,
+        myRole: role ?? null,
+        playerKey,
+        pendingMatch: null,
+        mode: isRoyale ? 'ROYALE' : '1v1'
+      });
+
       localStorage.setItem('wr_session', JSON.stringify({ roomCode: code, playerKey }));
       setName();
     };
@@ -169,9 +211,8 @@ export function useGameSocket(
     socket.on('names_update', (names: Names) => updateState({ names }));
     socket.on('ready_status', (rs: ReadyStatus) => updateState({ readyStatus: rs }));
 
-    // NEW: queue match accept/decline flow
     socket.on('match_found', ({ matchId, expiresAt }: PendingMatch) => {
-      playSfx('point'); // notification sound
+      playSfx('point');
       updateState({ pendingMatch: { matchId, expiresAt } });
     });
 
@@ -192,7 +233,7 @@ export function useGameSocket(
         roundEndsAt: s.roundEndsAt,
         resultEndsAt: s.resultEndsAt,
         activeLetters: s.letters || [],
-        rematchStatus: s.rematch,
+        rematchStatus: s.rematch
       });
     });
 
@@ -208,7 +249,7 @@ export function useGameSocket(
         matchWord: '',
         activeLetters: [],
         lockedLetter: null,
-        battleLog: [],
+        battleLog: []
       });
       setName();
     });
@@ -223,39 +264,72 @@ export function useGameSocket(
         activeLetters: [],
         lockedLetter: null,
         battleLog: [],
-        opponentTyping: false,
+        opponentTyping: false
       });
     });
 
-    socket.on('round_start', ({ letters, endsAt }: any) => {
+    socket.on('round_start', ({ letters, endsAt, round }: any) => {
+      const isRoyale = stateRef.current.mode === 'ROYALE' || typeof round === 'number';
+
       updateState({
         phase: 'RACING',
         roundEndsAt: endsAt,
         pickEndsAt: null,
         resultEndsAt: null,
-        activeLetters: letters,
+        activeLetters: letters || [],
         roundResult: null,
         battleLog: [],
         opponentTyping: false,
+        ...(isRoyale ? { mode: 'ROYALE', currentRound: round ?? stateRef.current.currentRound } : {})
       });
     });
 
-    // Dead Screen
-    socket.on('round_result', ({ winnerRole, word, scores, endsAt }: any) => {
+    socket.on('round_result', (payload: any) => {
+      const endsAt = payload?.endsAt;
+
+      // Royale Result
+      if (payload && typeof payload.winnerName !== 'undefined' && !payload.scores) {
+        updateState({
+          mode: 'ROYALE',
+          phase: 'ROUND_RESULT',
+          resultEndsAt: endsAt,
+          roundEndsAt: null,
+          lockedLetter: null,
+          roundResult: { winnerRole: null, winnerName: payload.winnerName, word: payload.word || null } as any,
+          currentRound: typeof payload.round === 'number' ? payload.round : stateRef.current.currentRound
+        });
+        playSfx('click');
+        return;
+      }
+
+      // 1v1 Result
+      const { winnerRole, word, scores } = payload || {};
       updateState({
         phase: 'ROUND_RESULT',
         resultEndsAt: endsAt,
         roundEndsAt: null,
         scores,
         roundResult: { winnerRole, word },
-        lockedLetter: null,
+        lockedLetter: null
       });
 
       const won = winnerRole === stateRef.current.myRole;
       if (winnerRole) playSfx(won ? 'point' : 'click');
     });
 
-    socket.on('match_over', ({ winnerRole, winningWord, scores }: any) => {
+    socket.on('match_over', (payload: any) => {
+      // Royale Match Over
+      if (payload && Array.isArray(payload.leaderboard)) {
+        updateState({
+          mode: 'ROYALE',
+          phase: 'GAME_OVER'
+        });
+        playSfx('lose');
+        return;
+      }
+
+      // 1v1 Match Over
+      const { winnerRole, winningWord, scores } = payload || {};
       const won = winnerRole === stateRef.current.myRole;
       playSfx(won ? 'win' : 'lose');
       if (won) confetti({ particleCount: 180, spread: 75, origin: { y: 0.7 } });
@@ -266,24 +340,24 @@ export function useGameSocket(
         matchWord: winningWord,
         matchWins: {
           me: stateRef.current.matchWins.me + (won ? 1 : 0),
-          opp: stateRef.current.matchWins.opp + (won ? 0 : 1),
-        },
+          opp: stateRef.current.matchWins.opp + (won ? 0 : 1)
+        }
       });
     });
 
-    socket.on('failed_attempt', ({ by, word, reason }: any) => {
+    socket.on('attempt_failed', ({ playerId, text, reason }: any) => {
+      const by = playerId === socket.id ? 'me' : 'opp';
       const entry: LogEntry = {
         id: Date.now() + Math.random(),
-        text: `${word} (${reason})`,
-        by,
-        isError: true,
+        text: reason ? `${text} (${reason})` : String(text || ''),
+        by: by as any,
+        isError: true
       };
       setState((prev) => ({ ...prev, battleLog: [...prev.battleLog.slice(-6), entry] }));
     });
 
     socket.on('opponent_typing', ({ typing }: { typing: boolean }) => {
       updateState({ opponentTyping: typing });
-
       if (opponentTypingTimeout.current) clearTimeout(opponentTypingTimeout.current);
       if (typing) {
         opponentTypingTimeout.current = window.setTimeout(
@@ -304,7 +378,7 @@ export function useGameSocket(
         roundResult: null,
         activeLetters: [],
         lockedLetter: null,
-        readyStatus: { p1: false, p2: false },
+        readyStatus: { p1: false, p2: false }
       });
     });
 
@@ -315,6 +389,33 @@ export function useGameSocket(
     });
 
     socket.on('error_message', (msg: string) => alert(msg));
+
+    // Royale Updates
+    socket.on('royale_state_update', (data: any) => {
+      updateState({
+        mode: 'ROYALE',
+        phase: data.phase ?? stateRef.current.phase,
+        royalePlayers: data.players ?? stateRef.current.royalePlayers,
+        currentRound: typeof data.round === 'number' ? data.round : stateRef.current.currentRound,
+        totalRounds: typeof data.totalRounds === 'number' ? data.totalRounds : stateRef.current.totalRounds,
+        activeLetters: data.letters || [],
+        roundEndsAt: data.roundEndsAt || stateRef.current.roundEndsAt,
+        resultEndsAt: data.resultEndsAt ?? stateRef.current.resultEndsAt,
+        preEndsAt: data.preEndsAt ?? stateRef.current.preEndsAt
+      });
+    });
+
+    socket.on('royale_submission', (data: any) => {
+      const player = stateRef.current.royalePlayers?.find((p: any) => p.id === data.playerId);
+      const name = player ? player.name : 'Unknown';
+      const entry: LogEntry = {
+        id: Date.now(),
+        text: `${name}: ${data.word} (+${data.points})`,
+        by: 'p1' as any,
+        isError: false
+      };
+      setState((prev) => ({ ...prev, battleLog: [...prev.battleLog.slice(-6), entry] }));
+    });
 
     return () => {
       socket.removeAllListeners();
@@ -328,21 +429,25 @@ export function useGameSocket(
   return {
     state,
 
-    // room controls
+    // Actions
     createRoom,
+    createRoyaleRoom, // EXPORTED HERE
     joinRoom,
+    joinRoyale,
+    startRoyale,
+    leaveRoom, // EXPORTED HERE
 
-    // queue + accept/decline
+    // Queue
     joinQueue,
     leaveQueue,
     acceptMatch,
     declineMatch,
 
-    // gameplay
+    // Gameplay
     sendReady,
     submitLetter,
     submitWord,
     sendTyping,
-    requestRematch,
+    requestRematch
   };
 }

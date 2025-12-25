@@ -1,12 +1,21 @@
 module.exports = {
   WINNING_SCORE: 10,
-  MIN_LENGTH: 3,
+  MIN_LENGTH_1V1: 3,
+  MIN_LENGTH_ROYALE: 4,
   
+  ROYALE_ROUNDS: 20,
+  ROYALE_MAX_PLAYERS: 10,
+  ROYALE_MIN_PLAYERS: 2,
+
+  ROYALE_SCORES: [10, 8, 6, 4, 2], 
+  ROYALE_DEFAULT_SCORE: 1, 
+
   TIMERS: {
-    PRE_MS: 3000,           // "Get Ready" time
-    PICK_MS: 5000,          // Letter picking time
-    ROUND_MS: 20000,        // Racing time
-    RESULT_MS: 3000,        // Dead screen time (New)
+    PRE_MS: 3000,
+    PICK_MS: 5000,
+    ROUND_MS: 20000,
+    RESULT_MS: 3000,         // Classic 1v1
+    RESULT_MS_ROYALE: 7000,  // FIX: Longer result time for Royale
     RECONNECT_GRACE_MS: 8000, 
   },
 
@@ -15,7 +24,12 @@ module.exports = {
     PRE: 'PRE',
     PICKING: 'PICKING',
     RACING: 'RACING',
-    ROUND_RESULT: 'ROUND_RESULT', // New Phase
+    ROUND_RESULT: 'ROUND_RESULT',
     GAME_OVER: 'GAME_OVER',
+  },
+
+  MODES: {
+    CLASSIC: '1v1',
+    ROYALE: 'ROYALE'
   }
 };

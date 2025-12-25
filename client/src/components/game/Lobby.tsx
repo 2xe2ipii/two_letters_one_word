@@ -1,27 +1,52 @@
-import { Copy } from 'lucide-react';
+import { Copy, Crown, Users, LogOut } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import type { GameState } from '../../types';
-// import { Users } from 'lucide-react'; // Optional icon
 import { socket } from '../../socketClient';
 
 interface Props {
-  playerName: string; setPlayerName: (n: string) => void;
+  playerName: string;
+  setPlayerName: (n: string) => void;
   state: GameState;
-  onCreate: () => void; onJoin: (code: string) => void;
-  onQueue: () => void; onLeaveQueue: () => void;
-  onReady: () => void; onCopy: () => void;
-  onAccept: () => void; onDecline: () => void;
+
+  onCreate: () => void; // Classic Create
+  createRoyaleRoom: () => void; // Royale Create
+  onJoin: (code: string) => void;
+  onJoinRoyale: () => void; // Join Random Royale
+
+  onQueue: () => void;
+  onLeaveQueue: () => void;
+
+  onReady: () => void;
+  onCopy: () => void;
+  onAccept: () => void;
+  onDecline: () => void;
+
+  onStartRoyale: () => void;
+
+  // NEW
+  onLeaveRoom: () => void;
 }
 
-
-export function Lobby({ 
-  playerName, setPlayerName, state, 
-  onCreate, onJoin, onQueue, onLeaveQueue, 
-  onReady, onCopy, onAccept, onDecline 
+export function Lobby({
+  playerName,
+  setPlayerName,
+  state,
+  onCreate,
+  createRoyaleRoom,
+  onJoin,
+  onJoinRoyale,
+  onQueue,
+  onLeaveQueue,
+  onReady,
+  onCopy,
+  onAccept,
+  onDecline,
+  onStartRoyale,
+  onLeaveRoom,
 }: Props) {
-  const [tab, setTab] = useState<'FRIEND' | 'QUEUE'>('FRIEND');
+  const [tab, setTab] = useState<'FRIEND' | 'QUEUE' | 'ROYALE'>('FRIEND');
   const [inputCode, setInputCode] = useState('');
-  
+
   // Local state for queue timer
   const [isQueuing, setIsQueuing] = useState(false);
   const [queueTime, setQueueTime] = useState(0);
@@ -34,35 +59,33 @@ export function Lobby({
 
   useEffect(() => {
     const onCount = (c: number) => setOnlineCount(c);
-    
     socket.on('online_count', onCount);
-    
-    // ASK FOR COUNT IMMEDIATELY
-    socket.emit('request_online_count'); 
-
-    return () => { socket.off('online_count', onCount); };
+    socket.emit('request_online_count');
+    return () => {
+      socket.off('online_count', onCount);
+    };
   }, []);
 
-  // Queue Timer Effect
+  // Queue Timer
   useEffect(() => {
-    let i: number;
+    let i: number | undefined;
     if (isQueuing && !state.pendingMatch) {
-      i = window.setInterval(() => setQueueTime(t => t + 1), 1000);
+      i = window.setInterval(() => setQueueTime((t) => t + 1), 1000);
     } else {
       setQueueTime(0);
     }
-    return () => clearInterval(i);
+    return () => {
+      if (i) clearInterval(i);
+    };
   }, [isQueuing, state.pendingMatch]);
 
-  // Handle External Cancel (e.g. from server)
   useEffect(() => {
     if (!state.pendingMatch && hasAccepted) {
-      setHasAccepted(false); // Reset accept state if match vanished
-      setIsQueuing(false); // Stop queuing visuals
+      setHasAccepted(false);
+      setIsQueuing(false);
     }
-  }, [state.pendingMatch]);
+  }, [state.pendingMatch, hasAccepted]);
 
-  // Match Countdown Effect
   useEffect(() => {
     if (!state.pendingMatch) return;
     const end = state.pendingMatch.expiresAt;
@@ -90,15 +113,18 @@ export function Lobby({
             <p className="text-slate-500 text-sm font-bold tracking-widest uppercase">Accept to play</p>
           </div>
 
-          {/* Circle Timer Visual */}
           <div className="relative w-32 h-32 mx-auto flex items-center justify-center">
             <svg className="absolute inset-0 w-full h-full -rotate-90">
               <circle cx="64" cy="64" r="60" stroke="#1e293b" strokeWidth="8" fill="none" />
-              <circle 
-                cx="64" cy="64" r="60" 
-                stroke="#10b981" strokeWidth="8" fill="none" 
-                strokeDasharray="377" 
-                strokeDashoffset={377 * (1 - matchTimeLeft / 10)} 
+              <circle
+                cx="64"
+                cy="64"
+                r="60"
+                stroke="#10b981"
+                strokeWidth="8"
+                fill="none"
+                strokeDasharray="377"
+                strokeDashoffset={377 * (1 - matchTimeLeft / 10)}
                 className="transition-[stroke-dashoffset] duration-200 linear"
               />
             </svg>
@@ -107,14 +133,17 @@ export function Lobby({
 
           {!hasAccepted ? (
             <div className="grid grid-cols-2 gap-4">
-              <button 
+              <button
                 onClick={onDecline}
                 className="py-4 rounded-xl border-2 border-slate-700 text-slate-300 font-black hover:bg-slate-800 hover:text-white transition"
               >
                 DECLINE
               </button>
-              <button 
-                onClick={() => { setHasAccepted(true); onAccept(); }}
+              <button
+                onClick={() => {
+                  setHasAccepted(true);
+                  onAccept();
+                }}
                 className="py-4 rounded-xl bg-emerald-500 text-white font-black hover:bg-emerald-400 shadow-lg shadow-emerald-900/40 transition active:scale-95"
               >
                 ACCEPT
@@ -122,7 +151,7 @@ export function Lobby({
             </div>
           ) : (
             <div className="py-4 rounded-xl bg-slate-800 border border-slate-700 text-emerald-400 font-black tracking-widest animate-pulse">
-              WAITING FOR OPPONENT...
+              WAITING...
             </div>
           )}
         </div>
@@ -132,6 +161,97 @@ export function Lobby({
 
   // --- ROOM LOBBY (Inside Room) ---
   if (state.roomCode) {
+    // ROYALE LOBBY
+    if (state.mode === 'ROYALE') {
+      const me = state.royalePlayers.find((p) => p.id === socket.id);
+      const isHost = me?.isHost;
+
+      return (
+        <div className="min-h-[100dvh] flex items-center justify-center py-10 px-4">
+          <div className="w-full max-w-2xl rounded-[2rem] border border-slate-800 bg-slate-900/60 backdrop-blur px-6 py-8 shadow-2xl space-y-6 flex flex-col h-[70vh]">
+            <div className="shrink-0 flex items-center justify-between border-b border-white/5 pb-4">
+              {/* Header Left */}
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-purple-500/20 rounded-xl text-purple-400">
+                  <Crown size={24} />
+                </div>
+                <div>
+                  <div className="text-[10px] font-black tracking-widest uppercase text-slate-400">ROYALE LOBBY</div>
+                  <div className="text-2xl font-black text-white">
+                    CODE: <span className="text-purple-400 font-mono tracking-wider">{state.roomCode}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Header Right */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={onCopy}
+                  className="p-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-400 hover:text-white"
+                  title="Copy code"
+                >
+                  <Copy size={20} />
+                </button>
+
+                {/* NEW LEAVE BUTTON */}
+                <button
+                  onClick={onLeaveRoom}
+                  className="p-2 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500 hover:text-white transition"
+                  title="Leave room"
+                >
+                  <LogOut size={20} />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-2 pr-2">
+              {state.royalePlayers.map((p) => (
+                <div
+                  key={p.id}
+                  className="flex items-center justify-between p-4 rounded-xl bg-slate-800/40 border border-slate-700/50"
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black ${
+                        p.isHost ? 'bg-yellow-500 text-black' : 'bg-slate-700 text-white'
+                      }`}
+                    >
+                      {p.name.charAt(0)}
+                    </div>
+                    <span className={`font-bold ${p.id === socket.id ? 'text-emerald-400' : 'text-slate-200'}`}>
+                      {p.name} {p.id === socket.id && '(YOU)'}
+                    </span>
+                  </div>
+                  {p.isHost && <Crown size={16} className="text-yellow-500" />}
+                </div>
+              ))}
+            </div>
+
+            <div className="shrink-0 pt-4 border-t border-white/5">
+              {isHost ? (
+                <button
+                  onClick={onStartRoyale}
+                  disabled={state.royalePlayers.length < 2}
+                  className={`w-full py-4 rounded-xl font-black text-xl shadow-lg transition ${
+                    state.royalePlayers.length < 2
+                      ? 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                      : 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-900/40'
+                  }`}
+                >
+                  {state.royalePlayers.length < 2 ? 'WAITING FOR PLAYERS (MIN 2)' : 'START ROYALE'}
+                </button>
+              ) : (
+                <div className="text-center text-slate-500 font-bold animate-pulse uppercase tracking-widest text-xs">
+                  Waiting for Host to start...
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // CLASSIC LOBBY (1v1)
     const isP1 = state.myRole === 'p1';
     const meReady = isP1 ? state.readyStatus.p1 : state.readyStatus.p2;
     const oppReady = isP1 ? state.readyStatus.p2 : state.readyStatus.p1;
@@ -139,33 +259,61 @@ export function Lobby({
 
     return (
       <div className="min-h-[100dvh] flex items-center justify-center py-10 px-4">
-        <div className="w-full max-w-md rounded-[2rem] border border-slate-800 bg-slate-900/60 backdrop-blur px-6 py-8 shadow-2xl text-center space-y-6">
+        <div className="w-full max-w-md rounded-[2rem] border border-slate-800 bg-slate-900/60 backdrop-blur px-6 py-8 shadow-2xl text-center space-y-6 relative">
+          {/* NEW LEAVE BUTTON */}
+          <button
+            onClick={onLeaveRoom}
+            className="absolute top-4 right-4 p-2 text-slate-600 hover:text-red-400 transition"
+            title="Leave room"
+          >
+            <LogOut size={20} />
+          </button>
+
           <div className="space-y-2">
-            <h2 className="text-3xl font-black italic text-white">LOBBY</h2>
+            <h2 className="text-3xl font-black italic text-white">1v1 LOBBY</h2>
             <div className="flex items-center justify-center gap-3">
               <div className="text-4xl font-mono font-black tracking-widest text-emerald-300">{state.roomCode}</div>
-              <button onClick={onCopy} className="p-2 rounded-xl bg-slate-800/70 border border-slate-700 hover:bg-slate-700 text-white"><Copy size={18} /></button>
+              <button
+                onClick={onCopy}
+                className="p-2 rounded-xl bg-slate-800/70 border border-slate-700 hover:bg-slate-700 text-white"
+                title="Copy code"
+              >
+                <Copy size={18} />
+              </button>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div className={`p-4 rounded-2xl border ${meReady ? 'bg-emerald-500/10 border-emerald-500/50' : 'bg-slate-800/50 border-slate-700'}`}>
-              <div className="text-[10px] font-black uppercase text-slate-400 mb-1">
-                {playerName || "YOU"}
+            <div
+              className={`p-4 rounded-2xl border ${
+                meReady ? 'bg-emerald-500/10 border-emerald-500/50' : 'bg-slate-800/50 border-slate-700'
+              }`}
+            >
+              <div className="text-[10px] font-black uppercase text-slate-400 mb-1">{playerName || 'YOU'}</div>
+              <div className={`font-bold ${meReady ? 'text-emerald-400' : 'text-slate-300'}`}>
+                {meReady ? 'READY' : 'NOT READY'}
               </div>
-              <div className={`font-bold ${meReady ? 'text-emerald-400' : 'text-slate-300'}`}>{meReady ? 'READY' : 'NOT READY'}</div>
             </div>
-            <div className={`p-4 rounded-2xl border ${oppReady ? 'bg-emerald-500/10 border-emerald-500/50' : 'bg-slate-800/50 border-slate-700'}`}>
+
+            <div
+              className={`p-4 rounded-2xl border ${
+                oppReady ? 'bg-emerald-500/10 border-emerald-500/50' : 'bg-slate-800/50 border-slate-700'
+              }`}
+            >
               <div className="text-[10px] font-black uppercase text-slate-400 mb-1">{oppName}</div>
-              <div className={`font-bold ${oppReady ? 'text-emerald-400' : 'text-slate-300'}`}>{oppReady ? 'READY' : 'WAITING...'}</div>
+              <div className={`font-bold ${oppReady ? 'text-emerald-400' : 'text-slate-300'}`}>
+                {oppReady ? 'READY' : 'WAITING...'}
+              </div>
             </div>
           </div>
 
-          <button 
+          <button
             onClick={onReady}
             disabled={meReady}
             className={`w-full py-4 rounded-2xl font-black text-xl transition active:scale-[0.99] ${
-              meReady ? 'bg-slate-700 text-slate-400 cursor-default' : 'bg-emerald-500 hover:bg-emerald-400 text-white shadow-lg shadow-emerald-900/20'
+              meReady
+                ? 'bg-slate-700 text-slate-400 cursor-default'
+                : 'bg-emerald-500 hover:bg-emerald-400 text-white shadow-lg shadow-emerald-900/20'
             }`}
           >
             {meReady ? 'WAITING FOR OPPONENT...' : 'I AM READY'}
@@ -176,65 +324,75 @@ export function Lobby({
   }
 
   // --- MAIN MENU ---
-  // --- MAIN MENU ---
   return (
     <div className="min-h-[100dvh] flex items-center justify-center py-10 px-4">
-      {/* Container is relative so we can place the badge outside of it */}
       <div className="w-full max-w-md relative">
-        
-        {/* --- ONLINE BADGE (SITTING OUTSIDE) --- */}
         <div className="absolute -top-10 right-4 flex items-center gap-2 text-slate-500/80">
-          <svg 
-            xmlns="http://www.w3.org/2000/svg" 
-            width="18" 
-            height="18" 
-            viewBox="0 0 24 24" 
-            fill="none" 
-            stroke="currentColor" 
-            strokeWidth="2.5" 
-            strokeLinecap="round" 
-            strokeLinejoin="round"
-          >
-            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-            <circle cx="9" cy="7" r="4" />
-            <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-          </svg>
-          {/* JUST THE NUMBER */}
+          <Users size={16} />
           <span className="font-bold font-mono text-sm">{onlineCount}</span>
         </div>
 
-        {/* --- MAIN BOX --- */}
         <div className="rounded-[2rem] border border-slate-800 bg-slate-900/60 backdrop-blur px-6 py-8 shadow-2xl relative overflow-hidden">
           <div className="text-center space-y-6 relative z-10">
-            
             <h1 className="text-6xl md:text-7xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400 leading-none">
-              HoW<br />
+              LETTERS
+              <br />
             </h1>
 
             <input
               value={playerName}
               onChange={(e) => setPlayerName(e.target.value)}
-              placeholder="Name"
+              placeholder="Your Name"
               className="w-full bg-slate-800/70 border-2 border-slate-700 rounded-2xl p-4 text-center font-black text-lg focus:border-emerald-500 outline-none text-white placeholder:text-slate-600"
             />
 
-            <div className="grid grid-cols-2 bg-slate-800/50 p-1 rounded-2xl">
-              <button 
-                onClick={() => { setTab('FRIEND'); if(isQueuing) { onLeaveQueue(); setIsQueuing(false); } }}
-                className={`py-3 rounded-xl text-sm font-black tracking-wide transition ${tab === 'FRIEND' ? 'bg-slate-700 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+            <div className="grid grid-cols-3 bg-slate-800/50 p-1 rounded-2xl gap-1">
+              <button
+                onClick={() => {
+                  setTab('FRIEND');
+                  if (isQueuing) {
+                    onLeaveQueue();
+                    setIsQueuing(false);
+                  }
+                }}
+                className={`py-3 rounded-xl text-[10px] md:text-xs font-black tracking-wide transition ${
+                  tab === 'FRIEND' ? 'bg-slate-700 text-white shadow' : 'text-slate-400 hover:text-white'
+                }`}
               >
                 FRIENDS
               </button>
-              <button 
-                onClick={() => setTab('QUEUE')}
-                className={`py-3 rounded-xl text-sm font-black tracking-wide transition ${tab === 'QUEUE' ? 'bg-slate-700 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+
+              <button
+                onClick={() => {
+                  setTab('QUEUE');
+                }}
+                className={`py-3 rounded-xl text-[10px] md:text-xs font-black tracking-wide transition ${
+                  tab === 'QUEUE' ? 'bg-slate-700 text-white shadow' : 'text-slate-400 hover:text-white'
+                }`}
               >
-                QUEUE
+                1v1 QUEUE
+              </button>
+
+              <button
+                onClick={() => {
+                  setTab('ROYALE');
+                  if (isQueuing) {
+                    onLeaveQueue();
+                    setIsQueuing(false);
+                  }
+                }}
+                className={`py-3 rounded-xl text-[10px] md:text-xs font-black tracking-wide transition ${
+                  tab === 'ROYALE'
+                    ? 'bg-purple-900/50 text-purple-200 shadow border border-purple-500/30'
+                    : 'text-slate-400 hover:text-purple-300'
+                }`}
+              >
+                ROYALE
               </button>
             </div>
 
-            {tab === 'FRIEND' ? (
+            {/* --- FRIEND TAB --- */}
+            {tab === 'FRIEND' && (
               <div className="space-y-3">
                 <div className="grid grid-cols-[1fr_auto] gap-3">
                   <input
@@ -243,34 +401,48 @@ export function Lobby({
                     placeholder="CODE"
                     className="w-full bg-slate-800/70 border-2 border-slate-700 rounded-2xl p-4 text-center font-mono text-xl uppercase focus:border-emerald-500 outline-none text-white"
                   />
-                  <button onClick={() => onJoin(inputCode)} className="px-6 rounded-2xl font-black bg-slate-800 border-2 border-slate-700 text-white hover:bg-slate-700">
+                  <button
+                    onClick={() => onJoin(inputCode)}
+                    className="px-6 rounded-2xl font-black bg-slate-800 border-2 border-slate-700 text-white hover:bg-slate-700"
+                  >
                     JOIN
                   </button>
                 </div>
+
                 <div className="flex items-center gap-3 text-slate-600 text-xs font-bold uppercase tracking-widest my-2">
                   <div className="h-px bg-slate-800 flex-1" /> OR <div className="h-px bg-slate-800 flex-1" />
                 </div>
-                <button onClick={onCreate} className="w-full py-4 rounded-2xl font-black text-xl bg-emerald-500 hover:bg-emerald-400 text-white shadow-lg">
-                  CREATE MATCH
+
+                <button
+                  onClick={onCreate}
+                  className="w-full py-4 rounded-2xl font-black text-xl bg-emerald-500 hover:bg-emerald-400 text-white shadow-lg"
+                >
+                  CREATE 1v1
                 </button>
               </div>
-            ) : (
+            )}
+
+            {/* --- QUEUE TAB --- */}
+            {tab === 'QUEUE' && (
               <div className="space-y-4 py-4 min-h-[140px] flex flex-col justify-center">
                 {isQueuing ? (
                   <div className="space-y-6">
-                    {/* SEARCHING ANIMATION */}
                     <div className="relative w-24 h-24 mx-auto">
-                       <div className="absolute inset-0 border-4 border-emerald-500/20 rounded-full animate-ping" />
-                       <div className="absolute inset-2 border-4 border-emerald-500/40 rounded-full animate-[spin_3s_linear_infinite]" />
-                       <div className="absolute inset-0 flex items-center justify-center font-mono font-black text-xl text-emerald-400">
-                          {formatTime(queueTime)}
-                       </div>
+                      <div className="absolute inset-0 border-4 border-emerald-500/20 rounded-full animate-ping" />
+                      <div className="absolute inset-2 border-4 border-emerald-500/40 rounded-full animate-[spin_3s_linear_infinite]" />
+                      <div className="absolute inset-0 flex items-center justify-center font-mono font-black text-xl text-emerald-400">
+                        {formatTime(queueTime)}
+                      </div>
                     </div>
-                    
                     <div className="space-y-2">
-                      <div className="text-sm font-black tracking-[0.3em] uppercase text-emerald-500/70 animate-pulse">Searching</div>
-                      <button 
-                        onClick={() => { onLeaveQueue(); setIsQueuing(false); }} 
+                      <div className="text-sm font-black tracking-[0.3em] uppercase text-emerald-500/70 animate-pulse">
+                        Searching
+                      </div>
+                      <button
+                        onClick={() => {
+                          onLeaveQueue();
+                          setIsQueuing(false);
+                        }}
                         className="px-6 py-2 rounded-full border border-slate-700 text-slate-400 font-bold text-xs hover:bg-slate-800 hover:text-white transition"
                       >
                         CANCEL
@@ -280,14 +452,44 @@ export function Lobby({
                 ) : (
                   <div className="space-y-2">
                     <p className="text-slate-400 text-sm">Find a random opponent.</p>
-                    <button 
-                      onClick={() => { onQueue(); setIsQueuing(true); }}
+                    <button
+                      onClick={() => {
+                        onQueue();
+                        setIsQueuing(true);
+                      }}
                       className="w-full py-4 rounded-2xl font-black text-xl bg-cyan-600 hover:bg-cyan-500 text-white shadow-lg"
                     >
                       FIND MATCH
                     </button>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* --- ROYALE TAB --- */}
+            {tab === 'ROYALE' && (
+              <div className="space-y-3">
+                <p className="text-purple-200/50 text-xs font-bold uppercase tracking-widest mb-4">
+                  Massively Multiplayer Word Race
+                </p>
+
+                <button
+                  onClick={onJoinRoyale}
+                  className="w-full py-4 rounded-2xl font-black text-xl bg-purple-600 hover:bg-purple-500 text-white shadow-lg shadow-purple-900/30 flex items-center justify-center gap-2"
+                >
+                  <Users size={20} /> JOIN RANDOM LOBBY
+                </button>
+
+                <div className="flex items-center gap-3 text-slate-600 text-xs font-bold uppercase tracking-widest my-2">
+                  <div className="h-px bg-slate-800 flex-1" /> OR <div className="h-px bg-slate-800 flex-1" />
+                </div>
+
+                <button
+                  onClick={createRoyaleRoom}
+                  className="w-full py-3 rounded-2xl font-bold text-lg bg-slate-800 border-2 border-slate-700 hover:bg-slate-700 text-purple-300"
+                >
+                  CREATE LOBBY
+                </button>
               </div>
             )}
           </div>
