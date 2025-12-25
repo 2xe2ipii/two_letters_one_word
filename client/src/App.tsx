@@ -40,30 +40,46 @@ export default function App() {
   const [globalInput, setGlobalInput] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // --- FOCUS MANAGEMENT ---
   useEffect(() => {
-    const isGameActive = ['PRE', 'PICKING', 'RACING'].includes(state.phase);
-    if (isGameActive) {
+    // We want the keyboard active during these phases
+    const needsKeyboard = ['PRE', 'PICKING', 'RACING'].includes(state.phase);
+    
+    if (needsKeyboard) {
+      // Clear input when phase changes (e.g. from Picking to Racing)
       setGlobalInput('');
-      const t = setTimeout(() => inputRef.current?.focus(), 50);
+      
+      // Force focus immediately. 
+      // This handles the transition from "RoundResult" (No Keyboard) -> "Picking" (Needs Keyboard)
+      const t = setTimeout(() => {
+        inputRef.current?.focus();
+      }, 10);
+
+      // Safety interval: keeps keyboard up if it accidentally closes
       const i = setInterval(() => {
-        // Aggressively keep focus
         if (document.activeElement !== inputRef.current) {
           inputRef.current?.focus();
         }
-      }, 500); // Increased frequency for stability
+      }, 500);
+      
       return () => { clearTimeout(t); clearInterval(i); };
+    } else {
+      // If we are in ROUND_RESULT or LOBBY, blur to hide keyboard
+      inputRef.current?.blur();
     }
   }, [state.phase]);
 
   const handleGlobalChange = (val: string) => {
+    // PICKING LOGIC
     if (state.phase === 'PICKING') {
-      const char = val.slice(-1).toUpperCase();
+      const char = val.slice(-1).toUpperCase(); // Get last char
       if (/^[A-Z]$/.test(char)) {
         wrap(() => submitLetter(char));
         setGlobalInput('');
         return;
       }
     }
+    // RACING LOGIC
     if (state.phase === 'RACING') {
       setGlobalInput(val.toUpperCase());
       sendTyping(val.length > 0);
@@ -99,11 +115,16 @@ export default function App() {
   };
 
   return (
-    // FIX 1: Use 'fixed inset-0' to lock the viewport size and prevent body scrolling
+    // MASTER CONTAINER: Fixed inset-0 prevents scrolling of the body.
+    // Flex column allows us to stack the HUD and the Game Area within the visible viewport.
     <div onClick={ensureFocus} className="fixed inset-0 bg-slate-950 text-white font-sans overflow-hidden flex flex-col">
       <ToastContainer toasts={toasts} />
 
-      {/* FIX 2: Input moved to top-0. This anchors the browser view to the top. */}
+      {/* THE ANCHOR:
+         Input is fixed to top-0 left-0. 
+         This trick tells the mobile browser "The focus is at the top", 
+         so it doesn't try to scroll the page down.
+      */}
       <form 
         onSubmit={handleGlobalSubmit} 
         className="fixed top-0 left-0 w-px h-px opacity-0 overflow-hidden pointer-events-none"
@@ -116,18 +137,19 @@ export default function App() {
            autoCorrect="off"
            autoCapitalize="characters"
            spellCheck="false"
-           // 16px font size prevents iOS from zooming in
-           style={{ fontSize: '16px' }} 
+           style={{ fontSize: '16px' }} // Prevents iOS zoom
          />
          <button type="submit" />
       </form>
 
       {showSound && <SoundPanel onClose={() => setShowSound(false)} {...audioProps} />}
+      
+      {/* ROUND RESULT OVERLAY (Covers screen, allows keyboard to hide) */}
       {state.phase === 'ROUND_RESULT' && <RoundResult state={state} />}
 
-      {/* HUD: Shrinkable if needed, but usually fits */}
+      {/* TOP BAR: Always visible, never shrinks */}
       {state.phase !== 'LOBBY' && (
-        <div className="shrink-0 z-30">
+        <div className="shrink-0 z-30 w-full bg-slate-950/50 backdrop-blur-sm">
           <GameHUD
             state={state}
             onSoundOpen={() => wrap(() => setShowSound(true))}
@@ -137,10 +159,11 @@ export default function App() {
         </div>
       )}
 
-      {/* Main Content: Flex column that handles the squeeze */}
-      <div className="flex-1 relative w-full max-w-5xl mx-auto flex flex-col min-h-0">
+      {/* GAME AREA: Fills remaining space above keyboard */}
+      <div className="flex-1 relative w-full flex flex-col min-h-0">
+        
         {state.phase === 'LOBBY' && (
-          <div className="h-full overflow-y-auto w-full">
+          <div className="h-full overflow-y-auto w-full pt-10">
             <Lobby
               playerName={playerName}
               setPlayerName={setPlayerName}
@@ -171,7 +194,7 @@ export default function App() {
         )}
 
         {state.phase === 'GAME_OVER' && (
-           <div className="h-full overflow-y-auto w-full">
+           <div className="h-full overflow-y-auto w-full pt-10">
               <GameOver state={state} onRematch={() => wrap(requestRematch)} />
            </div>
         )}

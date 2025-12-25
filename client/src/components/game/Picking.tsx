@@ -13,12 +13,13 @@ export function Picking({ state }: { state: GameState }) {
 
   const ratio = target ? Math.max(0, Math.min(1, (target - now) / duration)) : 0;
 
-  // CHANGE: Layout uses h-full + flex to center content
+  // REQUIREMENT: "Place the Letter Input Field ... higher."
+  // We use 'justify-start' and 'pt-8' to bias the content to the top.
   return (
-    <div className="h-full flex items-center justify-center px-4">
-      <div className="w-full max-w-md rounded-[2rem] border border-slate-800 bg-slate-900/60 backdrop-blur px-6 py-8 md:py-10 shadow-2xl relative overflow-hidden">
+    <div className="h-full w-full flex flex-col justify-start items-center pt-8 px-4">
+      <div className="w-full max-w-md rounded-[2rem] border border-slate-800 bg-slate-900/60 backdrop-blur px-6 py-8 shadow-2xl relative overflow-hidden">
         
-        <div className="space-y-6 md:space-y-8 text-center relative z-10">
+        <div className="space-y-6 text-center relative z-10">
           <div className="space-y-4">
             <div className="text-[10px] font-black tracking-[0.35em] uppercase text-slate-400">
               {state.phase === 'PRE' ? 'GET READY' : 'PICK A LETTER'}
@@ -33,6 +34,7 @@ export function Picking({ state }: { state: GameState }) {
             <div className="flex items-center justify-center">
               {!state.lockedLetter ? (
                 <div className="w-24 h-24 md:w-32 md:h-32 bg-slate-800/70 border-4 border-slate-700 rounded-3xl flex items-center justify-center">
+                   {/* Blinking cursor */}
                    <div className="w-1 h-12 bg-slate-500 animate-pulse" />
                 </div>
               ) : (
