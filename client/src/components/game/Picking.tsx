@@ -13,10 +13,9 @@ export function Picking({ state }: { state: GameState }) {
 
   const ratio = target ? Math.max(0, Math.min(1, (target - now) / duration)) : 0;
 
-  // REQUIREMENT: "Place the Letter Input Field ... higher."
-  // We use 'justify-start' and 'pt-8' to bias the content to the top.
+  // FIX: pt-8 pushes it just below HUD. Layout is top-biased.
   return (
-    <div className="h-full w-full flex flex-col justify-start items-center pt-8 px-4">
+    <div className="w-full h-full flex flex-col items-center pt-8 px-4">
       <div className="w-full max-w-md rounded-[2rem] border border-slate-800 bg-slate-900/60 backdrop-blur px-6 py-8 shadow-2xl relative overflow-hidden">
         
         <div className="space-y-6 text-center relative z-10">
