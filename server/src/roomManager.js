@@ -443,6 +443,21 @@ const finalizeMatch = (io, m) => {
   io.to(room.code).emit("ready_status", { p1: false, p2: false });
 };
 
+function joinRoom(roomCode, socketId, username) { // <--- Accept username
+    const room = rooms.get(roomCode);
+    if (!room) return null;
+
+    const newPlayer = {
+        id: socketId,
+        username: username || `Player ${room.players.length + 1}`, // Fallback if empty
+        score: 0,
+        ready: false
+    };
+
+    room.players.push(newPlayer);
+    return room;
+}
+
 // -------------------- Exports --------------------
 
 module.exports = {

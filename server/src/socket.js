@@ -5,6 +5,15 @@ const RoomManager = require('./roomManager');
 module.exports = (io) => {
   io.on('connection', (socket) => {
     
+    // --- 1. ONLINE COUNT LOGIC ---
+    // Broadcast to everyone whenever someone connects
+    io.emit('online_count', io.engine.clientsCount);
+
+    // Handle immediate request from client (Fixes initial "0" bug)
+    socket.on('request_online_count', () => {
+      socket.emit('online_count', io.engine.clientsCount);
+    });
+
     // --- LOBBY / QUEUE ---
 
     socket.on('create_room', () => {
@@ -105,7 +114,6 @@ module.exports = (io) => {
       else room.p2Letter = char;
 
       if (room.p1Letter && room.p2Letter) {
-        // FIXED: Call startRound directly from RoomManager
         RoomManager.startRound(io, code, room);
       }
     });
@@ -121,7 +129,13 @@ module.exports = (io) => {
       );
 
       if (!isValid) {
-        io.to(code).emit('failed_attempt', { by: role, word, reason });
+        // --- 2. FLOATING WORDS FIX ---
+        // Emit 'attempt_failed' to room so opponent sees it too.
+        // Include 'playerId' so frontend knows who sent it.
+        io.to(code).emit('attempt_failed', { 
+            text: word, 
+            playerId: socket.id 
+        });
         return;
       }
 
@@ -153,6 +167,9 @@ module.exports = (io) => {
     });
 
     socket.on('disconnect', () => {
+      // Broadcast new count when someone leaves
+      io.emit('online_count', io.engine.clientsCount);
+
       const { rooms } = require('./roomManager');
       RoomManager.leaveQueue(socket.id);
       

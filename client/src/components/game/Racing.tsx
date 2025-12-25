@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { GameState } from '../../types';
+import { FloatingFeedback } from './FloatingFeedback';
 
 export function Racing({ state, onSubmit, onTyping }: { state: GameState; onSubmit: (w: string) => void; onTyping: (t: boolean) => void }) {
   const [input, setInput] = useState('');
@@ -32,6 +33,7 @@ export function Racing({ state, onSubmit, onTyping }: { state: GameState; onSubm
   return (
     <div className="mt-6 md:mt-10 w-full max-w-xl mx-auto px-4 space-y-8">
       {/* Timer Bar */}
+      <FloatingFeedback />
       <div className="w-full h-3 bg-slate-800 rounded-full overflow-hidden border border-slate-700 shadow-inner">
         <div className="h-full bg-cyan-400 transition-[width] duration-75 ease-linear" style={{ width: `${ratio * 100}%` }} />
       </div>

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import io, { Socket } from 'socket.io-client';
+// import io, { Socket } from 'socket.io-client';
+import { socket } from '../socketClient';
 import confetti from 'canvas-confetti';
 import type {
   GameState,
@@ -11,8 +12,8 @@ import type {
   ReadyStatus
 } from '../types';
 
-const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3001';
-const socket: Socket = io(SERVER_URL);
+// const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3001';
+// const socket: Socket = io(SERVER_URL);
 
 const cleanName = (s: string) => s.trim().replace(/\s+/g, ' ').slice(0, 16);
 

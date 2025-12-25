@@ -1,6 +1,8 @@
 import { Copy } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import type { GameState } from '../../types';
+// import { Users } from 'lucide-react'; // Optional icon
+import { socket } from '../../socketClient';
 
 interface Props {
   playerName: string; setPlayerName: (n: string) => void;
@@ -10,6 +12,7 @@ interface Props {
   onReady: () => void; onCopy: () => void;
   onAccept: () => void; onDecline: () => void;
 }
+
 
 export function Lobby({ 
   playerName, setPlayerName, state, 
@@ -26,6 +29,19 @@ export function Lobby({
   // Match Accept Timer
   const [matchTimeLeft, setMatchTimeLeft] = useState(10);
   const [hasAccepted, setHasAccepted] = useState(false);
+
+  const [onlineCount, setOnlineCount] = useState(0);
+
+  useEffect(() => {
+    const onCount = (c: number) => setOnlineCount(c);
+    
+    socket.on('online_count', onCount);
+    
+    // ASK FOR COUNT IMMEDIATELY
+    socket.emit('request_online_count'); 
+
+    return () => { socket.off('online_count', onCount); };
+  }, []);
 
   // Queue Timer Effect
   useEffect(() => {
@@ -134,7 +150,9 @@ export function Lobby({
 
           <div className="grid grid-cols-2 gap-4">
             <div className={`p-4 rounded-2xl border ${meReady ? 'bg-emerald-500/10 border-emerald-500/50' : 'bg-slate-800/50 border-slate-700'}`}>
-              <div className="text-[10px] font-black uppercase text-slate-400 mb-1">YOU</div>
+              <div className="text-[10px] font-black uppercase text-slate-400 mb-1">
+                {playerName || "YOU"}
+              </div>
               <div className={`font-bold ${meReady ? 'text-emerald-400' : 'text-slate-300'}`}>{meReady ? 'READY' : 'NOT READY'}</div>
             </div>
             <div className={`p-4 rounded-2xl border ${oppReady ? 'bg-emerald-500/10 border-emerald-500/50' : 'bg-slate-800/50 border-slate-700'}`}>
@@ -158,92 +176,121 @@ export function Lobby({
   }
 
   // --- MAIN MENU ---
+  // --- MAIN MENU ---
   return (
     <div className="min-h-[100dvh] flex items-center justify-center py-10 px-4">
-      <div className="w-full max-w-md rounded-[2rem] border border-slate-800 bg-slate-900/60 backdrop-blur px-6 py-8 shadow-2xl relative overflow-hidden">
-        <div className="text-center space-y-6 relative z-10">
-          <h1 className="text-6xl md:text-7xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400 leading-none">
-            2 LETTERS<br />1 WORD
-          </h1>
+      {/* Container is relative so we can place the badge outside of it */}
+      <div className="w-full max-w-md relative">
+        
+        {/* --- ONLINE BADGE (SITTING OUTSIDE) --- */}
+        <div className="absolute -top-10 right-4 flex items-center gap-2 text-slate-500/80">
+          <svg 
+            xmlns="http://www.w3.org/2000/svg" 
+            width="18" 
+            height="18" 
+            viewBox="0 0 24 24" 
+            fill="none" 
+            stroke="currentColor" 
+            strokeWidth="2.5" 
+            strokeLinecap="round" 
+            strokeLinejoin="round"
+          >
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+          </svg>
+          {/* JUST THE NUMBER */}
+          <span className="font-bold font-mono text-sm">{onlineCount}</span>
+        </div>
 
-          <input
-            value={playerName}
-            onChange={(e) => setPlayerName(e.target.value)}
-            placeholder="Name"
-            className="w-full bg-slate-800/70 border-2 border-slate-700 rounded-2xl p-4 text-center font-black text-lg focus:border-emerald-500 outline-none text-white placeholder:text-slate-600"
-          />
+        {/* --- MAIN BOX --- */}
+        <div className="rounded-[2rem] border border-slate-800 bg-slate-900/60 backdrop-blur px-6 py-8 shadow-2xl relative overflow-hidden">
+          <div className="text-center space-y-6 relative z-10">
+            
+            <h1 className="text-6xl md:text-7xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400 leading-none">
+              HoW<br />
+            </h1>
 
-          <div className="grid grid-cols-2 bg-slate-800/50 p-1 rounded-2xl">
-            <button 
-              onClick={() => { setTab('FRIEND'); if(isQueuing) { onLeaveQueue(); setIsQueuing(false); } }}
-              className={`py-3 rounded-xl text-sm font-black tracking-wide transition ${tab === 'FRIEND' ? 'bg-slate-700 text-white shadow' : 'text-slate-400 hover:text-white'}`}
-            >
-              FRIENDS
-            </button>
-            <button 
-              onClick={() => setTab('QUEUE')}
-              className={`py-3 rounded-xl text-sm font-black tracking-wide transition ${tab === 'QUEUE' ? 'bg-slate-700 text-white shadow' : 'text-slate-400 hover:text-white'}`}
-            >
-              QUEUE
-            </button>
-          </div>
+            <input
+              value={playerName}
+              onChange={(e) => setPlayerName(e.target.value)}
+              placeholder="Name"
+              className="w-full bg-slate-800/70 border-2 border-slate-700 rounded-2xl p-4 text-center font-black text-lg focus:border-emerald-500 outline-none text-white placeholder:text-slate-600"
+            />
 
-          {tab === 'FRIEND' ? (
-            <div className="space-y-3">
-              <div className="grid grid-cols-[1fr_auto] gap-3">
-                <input
-                  value={inputCode}
-                  onChange={(e) => setInputCode(e.target.value.toUpperCase())}
-                  placeholder="CODE"
-                  className="w-full bg-slate-800/70 border-2 border-slate-700 rounded-2xl p-4 text-center font-mono text-xl uppercase focus:border-emerald-500 outline-none text-white"
-                />
-                <button onClick={() => onJoin(inputCode)} className="px-6 rounded-2xl font-black bg-slate-800 border-2 border-slate-700 text-white hover:bg-slate-700">
-                  JOIN
-                </button>
-              </div>
-              <div className="flex items-center gap-3 text-slate-600 text-xs font-bold uppercase tracking-widest my-2">
-                <div className="h-px bg-slate-800 flex-1" /> OR <div className="h-px bg-slate-800 flex-1" />
-              </div>
-              <button onClick={onCreate} className="w-full py-4 rounded-2xl font-black text-xl bg-emerald-500 hover:bg-emerald-400 text-white shadow-lg">
-                CREATE MATCH
+            <div className="grid grid-cols-2 bg-slate-800/50 p-1 rounded-2xl">
+              <button 
+                onClick={() => { setTab('FRIEND'); if(isQueuing) { onLeaveQueue(); setIsQueuing(false); } }}
+                className={`py-3 rounded-xl text-sm font-black tracking-wide transition ${tab === 'FRIEND' ? 'bg-slate-700 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+              >
+                FRIENDS
+              </button>
+              <button 
+                onClick={() => setTab('QUEUE')}
+                className={`py-3 rounded-xl text-sm font-black tracking-wide transition ${tab === 'QUEUE' ? 'bg-slate-700 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+              >
+                QUEUE
               </button>
             </div>
-          ) : (
-            <div className="space-y-4 py-4 min-h-[140px] flex flex-col justify-center">
-              {isQueuing ? (
-                <div className="space-y-6">
-                  {/* SEARCHING ANIMATION */}
-                  <div className="relative w-24 h-24 mx-auto">
-                     <div className="absolute inset-0 border-4 border-emerald-500/20 rounded-full animate-ping" />
-                     <div className="absolute inset-2 border-4 border-emerald-500/40 rounded-full animate-[spin_3s_linear_infinite]" />
-                     <div className="absolute inset-0 flex items-center justify-center font-mono font-black text-xl text-emerald-400">
-                        {formatTime(queueTime)}
-                     </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <div className="text-sm font-black tracking-[0.3em] uppercase text-emerald-500/70 animate-pulse">Searching</div>
-                    <button 
-                      onClick={() => { onLeaveQueue(); setIsQueuing(false); }} 
-                      className="px-6 py-2 rounded-full border border-slate-700 text-slate-400 font-bold text-xs hover:bg-slate-800 hover:text-white transition"
-                    >
-                      CANCEL
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <p className="text-slate-400 text-sm">Find a random opponent.</p>
-                  <button 
-                    onClick={() => { onQueue(); setIsQueuing(true); }}
-                    className="w-full py-4 rounded-2xl font-black text-xl bg-cyan-600 hover:bg-cyan-500 text-white shadow-lg"
-                  >
-                    FIND MATCH
+
+            {tab === 'FRIEND' ? (
+              <div className="space-y-3">
+                <div className="grid grid-cols-[1fr_auto] gap-3">
+                  <input
+                    value={inputCode}
+                    onChange={(e) => setInputCode(e.target.value.toUpperCase())}
+                    placeholder="CODE"
+                    className="w-full bg-slate-800/70 border-2 border-slate-700 rounded-2xl p-4 text-center font-mono text-xl uppercase focus:border-emerald-500 outline-none text-white"
+                  />
+                  <button onClick={() => onJoin(inputCode)} className="px-6 rounded-2xl font-black bg-slate-800 border-2 border-slate-700 text-white hover:bg-slate-700">
+                    JOIN
                   </button>
                 </div>
-              )}
-            </div>
-          )}
+                <div className="flex items-center gap-3 text-slate-600 text-xs font-bold uppercase tracking-widest my-2">
+                  <div className="h-px bg-slate-800 flex-1" /> OR <div className="h-px bg-slate-800 flex-1" />
+                </div>
+                <button onClick={onCreate} className="w-full py-4 rounded-2xl font-black text-xl bg-emerald-500 hover:bg-emerald-400 text-white shadow-lg">
+                  CREATE MATCH
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4 py-4 min-h-[140px] flex flex-col justify-center">
+                {isQueuing ? (
+                  <div className="space-y-6">
+                    {/* SEARCHING ANIMATION */}
+                    <div className="relative w-24 h-24 mx-auto">
+                       <div className="absolute inset-0 border-4 border-emerald-500/20 rounded-full animate-ping" />
+                       <div className="absolute inset-2 border-4 border-emerald-500/40 rounded-full animate-[spin_3s_linear_infinite]" />
+                       <div className="absolute inset-0 flex items-center justify-center font-mono font-black text-xl text-emerald-400">
+                          {formatTime(queueTime)}
+                       </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <div className="text-sm font-black tracking-[0.3em] uppercase text-emerald-500/70 animate-pulse">Searching</div>
+                      <button 
+                        onClick={() => { onLeaveQueue(); setIsQueuing(false); }} 
+                        className="px-6 py-2 rounded-full border border-slate-700 text-slate-400 font-bold text-xs hover:bg-slate-800 hover:text-white transition"
+                      >
+                        CANCEL
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-slate-400 text-sm">Find a random opponent.</p>
+                    <button 
+                      onClick={() => { onQueue(); setIsQueuing(true); }}
+                      className="w-full py-4 rounded-2xl font-black text-xl bg-cyan-600 hover:bg-cyan-500 text-white shadow-lg"
+                    >
+                      FIND MATCH
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
