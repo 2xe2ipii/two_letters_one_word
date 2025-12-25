@@ -42,15 +42,15 @@ export default function App() {
 
   useEffect(() => {
     const isGameActive = ['PRE', 'PICKING', 'RACING'].includes(state.phase);
-    
     if (isGameActive) {
       setGlobalInput('');
       const t = setTimeout(() => inputRef.current?.focus(), 50);
       const i = setInterval(() => {
+        // Aggressively keep focus
         if (document.activeElement !== inputRef.current) {
           inputRef.current?.focus();
         }
-      }, 1000);
+      }, 500); // Increased frequency for stability
       return () => { clearTimeout(t); clearInterval(i); };
     }
   }, [state.phase]);
@@ -99,14 +99,14 @@ export default function App() {
   };
 
   return (
-    // CHANGE: h-[100dvh] + flex col + overflow-hidden to FORCE it to fit screen
-    <div onClick={ensureFocus} className="h-[100dvh] w-full bg-slate-950 text-white font-sans overflow-hidden flex flex-col relative">
+    // FIX 1: Use 'fixed inset-0' to lock the viewport size and prevent body scrolling
+    <div onClick={ensureFocus} className="fixed inset-0 bg-slate-950 text-white font-sans overflow-hidden flex flex-col">
       <ToastContainer toasts={toasts} />
 
-      {/* CHANGE: Input fixed to center to prevent scroll jumping */}
+      {/* FIX 2: Input moved to top-0. This anchors the browser view to the top. */}
       <form 
         onSubmit={handleGlobalSubmit} 
-        className="fixed top-1/2 left-1/2 w-px h-px opacity-0 overflow-hidden pointer-events-none -translate-x-1/2 -translate-y-1/2"
+        className="fixed top-0 left-0 w-px h-px opacity-0 overflow-hidden pointer-events-none"
       >
          <input
            ref={inputRef}
@@ -116,6 +116,7 @@ export default function App() {
            autoCorrect="off"
            autoCapitalize="characters"
            spellCheck="false"
+           // 16px font size prevents iOS from zooming in
            style={{ fontSize: '16px' }} 
          />
          <button type="submit" />
@@ -124,9 +125,9 @@ export default function App() {
       {showSound && <SoundPanel onClose={() => setShowSound(false)} {...audioProps} />}
       {state.phase === 'ROUND_RESULT' && <RoundResult state={state} />}
 
-      {/* HUD stays at top, natural height */}
+      {/* HUD: Shrinkable if needed, but usually fits */}
       {state.phase !== 'LOBBY' && (
-        <div className="shrink-0">
+        <div className="shrink-0 z-30">
           <GameHUD
             state={state}
             onSoundOpen={() => wrap(() => setShowSound(true))}
@@ -136,10 +137,10 @@ export default function App() {
         </div>
       )}
 
-      {/* Main Content Area: Fills remaining space */}
-      <div className="flex-1 relative w-full max-w-5xl mx-auto flex flex-col overflow-hidden">
+      {/* Main Content: Flex column that handles the squeeze */}
+      <div className="flex-1 relative w-full max-w-5xl mx-auto flex flex-col min-h-0">
         {state.phase === 'LOBBY' && (
-          <div className="h-full overflow-y-auto">
+          <div className="h-full overflow-y-auto w-full">
             <Lobby
               playerName={playerName}
               setPlayerName={setPlayerName}
@@ -170,7 +171,7 @@ export default function App() {
         )}
 
         {state.phase === 'GAME_OVER' && (
-           <div className="h-full overflow-y-auto">
+           <div className="h-full overflow-y-auto w-full">
               <GameOver state={state} onRematch={() => wrap(requestRematch)} />
            </div>
         )}
