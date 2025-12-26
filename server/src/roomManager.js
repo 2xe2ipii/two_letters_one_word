@@ -113,7 +113,6 @@ const broadcastRoyaleState = (io, room) => {
     isHost: p.id === room.hostId,
     connected: p.connected,
     ready: p.ready,
-
     finishedRound: !!p.finishedRound,
     roundPoints: p.roundPoints || 0,
   }));
@@ -122,7 +121,8 @@ const broadcastRoyaleState = (io, room) => {
     phase: computePhase(room),
     players: playerList,
     round: room.currentRound,
-    totalRounds: ROYALE_ROUNDS,
+    // FIX: Use the room's configured rounds, fallback to constant only if undefined
+    totalRounds: room.totalRounds || ROYALE_ROUNDS, 
     letters: room.activeLetters,
     roundEndsAt: room.roundEndsAt,
     resultEndsAt: room.resultEndsAt,
@@ -311,7 +311,7 @@ const startPreGame = (io, code, room) => {
 
 // -------------------- Royale Flow --------------------
 
-const startRoyaleGame = (io, code, room, requesterId = null) => {
+const startRoyaleGame = (io, code, room, requesterId = null, config = {}) => {
   if (!room || room.mode !== MODES.ROYALE) return;
   if (computePhase(room) !== PHASES.LOBBY) return;
 
@@ -320,6 +320,9 @@ const startRoyaleGame = (io, code, room, requesterId = null) => {
 
   const connectedPlayers = room.players.filter((p) => p.connected);
   if (connectedPlayers.length < 2) return;
+
+  // CONFIGURATION: Set rounds from host, or default to 20
+  room.totalRounds = config.totalRounds || ROYALE_ROUNDS;
 
   room.matchOver = false;
   room.currentRound = 1;
@@ -428,21 +431,37 @@ const submitRoyaleWord = (io, code, room, playerKey, word) => {
   }
 };
 
-// FIXED: Use RESULT_MS_ROYALE if available, else fallback to RESULT_MS
 const finishRoyaleRound = (io, code, room) => {
   if (!room || room.mode !== MODES.ROYALE) return;
 
   clearAllTimers(room);
 
+  // Use dynamic round count
+  const maxRounds = room.totalRounds || ROYALE_ROUNDS;
+  const isLastRound = room.currentRound >= maxRounds;
+
+  // --- FIX: IMMEDIATE GAME OVER IF LAST ROUND ---
+  if (isLastRound) {
+    room.matchOver = true;
+    room.roundActive = false;
+    room.resultActive = false; // Do not go to result phase
+
+    // Calculate final scores/leaderboard
+    io.to(code).emit("match_over", {
+      leaderboard: sortLeaderboardCopy(room.players),
+    });
+
+    broadcastRoyaleState(io, room);
+    return;
+  }
+  // ----------------------------------------------
+
   room.roundActive = false;
   room.resultActive = true;
-
-  const isLastRound = room.currentRound >= ROYALE_ROUNDS;
 
   const resultMs = Number.isFinite(TIMERS.RESULT_MS_ROYALE) ? TIMERS.RESULT_MS_ROYALE : TIMERS.RESULT_MS;
   room.resultEndsAt = Date.now() + resultMs;
 
-  // Optional: winnerName + word
   const roundWinnerId = room.roundWinners.length > 0 ? room.roundWinners[0] : null;
   const winnerName = roundWinnerId ? room.players.find((p) => p.id === roundWinnerId)?.name : null;
 
@@ -458,18 +477,6 @@ const finishRoyaleRound = (io, code, room) => {
   room.resultTimeoutId = setTimeout(() => {
     const still = rooms[code];
     if (!still) return;
-
-    if (isLastRound) {
-      still.matchOver = true;
-      still.resultActive = false;
-
-      io.to(code).emit("match_over", {
-        leaderboard: sortLeaderboardCopy(still.players),
-      });
-
-      broadcastRoyaleState(io, still);
-      return;
-    }
 
     still.currentRound += 1;
     still.resultActive = false;
@@ -927,6 +934,56 @@ const joinRoyale = (io, socket, username) => {
   broadcastRoyaleState(io, room);
 };
 
+const joinRoyaleByCode = (io, socket, code, room, username) => {
+  if (!room || room.mode !== MODES.ROYALE) return;
+
+  // Check for duplicates
+  const existingPlayer = room.players.find(p => p.id === socket.id);
+  if (existingPlayer) {
+     socket.join(code);
+     socket.emit("joined_room", {
+        code: room.code,
+        mode: MODES.ROYALE,
+        playerKey: existingPlayer.key,
+        hostId: room.hostId,
+     });
+     broadcastRoyaleState(io, room);
+     return;
+  }
+
+  if (room.players.length >= ROYALE_MAX_PLAYERS) {
+     socket.emit("error_message", "Room is full");
+     return;
+  }
+  
+  // Create player
+  const player = {
+    id: socket.id,
+    key: randId(18),
+    name: username || `Player ${room.players.length + 1}`,
+    score: 0,
+    connected: true,
+    ready: false,
+  };
+
+  room.players.push(player);
+  socket.join(room.code);
+
+  // If room had no host (or host left), assign this person
+  if (!room.hostId) {
+    room.hostId = player.id;
+  }
+
+  socket.emit("joined_room", {
+    code: room.code,
+    mode: MODES.ROYALE,
+    playerKey: player.key,
+    hostId: room.hostId,
+  });
+
+  broadcastRoyaleState(io, room);
+};
+
 // -------------------- Exports --------------------
 
 module.exports = {
@@ -966,6 +1023,8 @@ module.exports = {
   startRoyaleRound, // optional
   submitRoyaleWord,
   handleRoyaleRejoin,
+  finishRoyaleRound,
+  joinRoyaleByCode,
 
   // NEW
   handleLeaveRoom,

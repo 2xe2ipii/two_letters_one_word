@@ -13,18 +13,17 @@ export function Picking({ state }: { state: GameState }) {
 
   const ratio = target ? Math.max(0, Math.min(1, (target - now) / duration)) : 0;
 
-  // FIX: pt-8 pushes it just below HUD. Layout is top-biased.
   return (
-    <div className="w-full h-full flex flex-col items-center pt-8 px-4">
-      <div className="w-full max-w-md rounded-[2rem] border border-slate-800 bg-slate-900/60 backdrop-blur px-6 py-8 shadow-2xl relative overflow-hidden">
+    <div className="w-full h-full flex flex-col items-center pt-8 px-4 transition-colors">
+      <div className="w-full max-w-md rounded-[2rem] border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-slate-900/60 backdrop-blur px-6 py-8 shadow-2xl relative overflow-hidden transition-colors">
         
         <div className="space-y-6 text-center relative z-10">
           <div className="space-y-4">
-            <div className="text-[10px] font-black tracking-[0.35em] uppercase text-slate-400">
+            <div className="text-[10px] font-black tracking-[0.35em] uppercase text-slate-400 dark:text-slate-400">
               {state.phase === 'PRE' ? 'GET READY' : 'PICK A LETTER'}
             </div>
             
-            <div className="w-full h-3 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
+            <div className="w-full h-3 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden border border-slate-300 dark:border-slate-700">
               <div className={`h-full transition-[width] duration-75 ${state.phase === 'PRE' ? 'bg-cyan-400' : 'bg-emerald-500'}`} style={{ width: `${ratio * 100}%` }} />
             </div>
           </div>
@@ -32,20 +31,19 @@ export function Picking({ state }: { state: GameState }) {
           {state.phase === 'PICKING' && (
             <div className="flex items-center justify-center">
               {!state.lockedLetter ? (
-                <div className="w-24 h-24 md:w-32 md:h-32 bg-slate-800/70 border-4 border-slate-700 rounded-3xl flex items-center justify-center">
-                   {/* Blinking cursor */}
-                   <div className="w-1 h-12 bg-slate-500 animate-pulse" />
+                <div className="w-24 h-24 md:w-32 md:h-32 bg-slate-100 dark:bg-slate-800/70 border-4 border-slate-300 dark:border-slate-700 rounded-3xl flex items-center justify-center">
+                   <div className="w-1 h-12 bg-slate-400 dark:bg-slate-500 animate-pulse" />
                 </div>
               ) : (
-                <div className="w-24 h-24 md:w-32 md:h-32 bg-slate-800/70 border-4 border-emerald-600/70 rounded-3xl flex items-center justify-center">
-                  <div className="text-6xl md:text-8xl font-black text-emerald-300">{state.lockedLetter}</div>
+                <div className="w-24 h-24 md:w-32 md:h-32 bg-emerald-50 dark:bg-slate-800/70 border-4 border-emerald-500/50 dark:border-emerald-600/70 rounded-3xl flex items-center justify-center">
+                  <div className="text-6xl md:text-8xl font-black text-emerald-500 dark:text-emerald-300">{state.lockedLetter}</div>
                 </div>
               )}
             </div>
           )}
 
           {state.phase === 'PRE' && (
-             <div className="text-4xl font-black text-white animate-pulse">STARTING...</div>
+             <div className="text-4xl font-black text-slate-900 dark:text-white animate-pulse">STARTING...</div>
           )}
           
           <div className="text-slate-500 text-sm">

@@ -1,63 +1,82 @@
-// types.ts
-
 export type GamePhase = 'LOBBY' | 'PRE' | 'PICKING' | 'RACING' | 'ROUND_RESULT' | 'GAME_OVER';
 export type GameMode = '1v1' | 'ROYALE';
-export type Role = 'p1' | 'p2';
 
-export type Names = { p1: string; p2: string };
-export type Scores = { p1: number; p2: number };
-
-export type RoyalePlayer = {
+export interface RoyalePlayer {
   id: string;
   name: string;
   score: number;
   isHost: boolean;
   connected: boolean;
-  ready?: boolean;
-  // New fields for tracking round progress
-  finishedRound: boolean;
-  roundPoints: number; // Points gained in the *current/last* round
-};
+  ready: boolean;
+  finishedRound?: boolean;
+  roundPoints?: number;
+}
 
-export type LogEntry = {
+export interface Toast {
+  id: number;
+  msg: string;
+}
+
+export interface Names {
+  p1: string;
+  p2: string;
+}
+
+export interface Scores {
+  p1: number;
+  p2: number;
+}
+
+export interface ReadyStatus {
+  p1: boolean;
+  p2: boolean;
+}
+
+export interface RematchStatus {
+  p1: boolean;
+  p2: boolean;
+}
+
+export interface PendingMatch {
+  matchId: string;
+  expiresAt: number;
+}
+
+export interface LogEntry {
   id: number;
   text: string;
-  by: Role | string;
+  by: 'me' | 'opp' | 'p1' | 'p2';
   isError: boolean;
-};
+}
 
-export type Toast = { id: number; msg: string };
-
-export type RoundResultData = {
-  winnerRole: Role | null;
+export interface RoundResultData {
+  winnerRole?: 'p1' | 'p2' | null;
   winnerName?: string | null;
-  word: string | null;
-  scores?: Scores;
-};
+  word?: string | null;
+}
 
-export type RematchStatus = { p1: boolean; p2: boolean };
-export type ReadyStatus = { p1: boolean; p2: boolean };
-export type PendingMatch = { matchId: string; expiresAt: number };
-
-export type GameState = {
-  mode: GameMode;
+export interface GameState {
   phase: GamePhase;
   roomCode: string;
   playerKey: string;
+  myRole: 'p1' | 'p2' | null;
+  mode: GameMode;
   
-  // 1v1
-  myRole: Role | null;
+  // 1v1 Specific
   names: Names;
   scores: Scores;
   matchWins: { me: number; opp: number };
   readyStatus: ReadyStatus;
-  
-  // Royale
+  opponentTyping: boolean;
+  rematchStatus: RematchStatus | null;
+  pendingMatch: PendingMatch | null;
+
+  // Royale Specific
   royalePlayers: RoyalePlayer[];
   currentRound: number;
   totalRounds: number;
-  
-  // Shared
+
+  // Shared / Game Logic
   preEndsAt: number | null;
   pickEndsAt: number | null;
   roundEndsAt: number | null;
@@ -65,9 +84,6 @@ export type GameState = {
   activeLetters: string[];
   lockedLetter: string | null;
   battleLog: LogEntry[];
-  opponentTyping: boolean; 
-  roundResult: RoundResultData | null; 
   matchWord: string;
-  rematchStatus: RematchStatus | null;
-  pendingMatch: PendingMatch | null;
-};
+  roundResult: RoundResultData | null;
+}

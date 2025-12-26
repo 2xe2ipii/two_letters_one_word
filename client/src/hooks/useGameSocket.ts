@@ -103,14 +103,20 @@ export function useGameSocket(
   // FIX: This was missing from the export list below
   const createRoyaleRoom = () => socket.emit('create_room', { mode: 'ROYALE' });
 
-  const joinRoom = (code: string) => socket.emit('join_room', code);
+  const joinRoom = (code: string) => {
+    // Pass name so if we join Royale, we enter with a name immediately
+    socket.emit('join_room', { code, name: playerNameRef.current });
+  };
 
   const joinRoyale = () => {
     socket.emit('join_royale', { username: playerNameRef.current });
   };
 
-  const startRoyale = () => {
-    socket.emit('start_royale', { roomCode: stateRef.current.roomCode });
+  const startRoyale = (rounds: number) => {
+    socket.emit('start_royale', { 
+        roomCode: stateRef.current.roomCode,
+        config: { totalRounds: rounds }
+    });
   };
 
   // FIX: Explicit leave room action
@@ -428,22 +434,16 @@ export function useGameSocket(
 
   return {
     state,
-
-    // Actions
     createRoom,
-    createRoyaleRoom, // EXPORTED HERE
+    createRoyaleRoom,
     joinRoom,
     joinRoyale,
-    startRoyale,
-    leaveRoom, // EXPORTED HERE
-
-    // Queue
+    startRoyale, // <--- This now accepts an argument
+    leaveRoom,
     joinQueue,
     leaveQueue,
     acceptMatch,
     declineMatch,
-
-    // Gameplay
     sendReady,
     submitLetter,
     submitWord,

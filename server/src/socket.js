@@ -92,22 +92,40 @@ module.exports = (io) => {
     });
 
     // Join existing Classic room (unchanged)
-    socket.on("join_room", (rawCode) => {
+    socket.on("join_room", (payload) => {
+      // Allow payload to be object { code, name } or just string code
+      let rawCode = "";
+      let playerName = "";
+      
+      if (typeof payload === 'object') {
+        rawCode = payload.code;
+        playerName = payload.name;
+      } else {
+        rawCode = payload;
+      }
+
       const code = normalizeCode(rawCode);
       const room = RoomManager.getRoom(code);
 
       if (!room) return socket.emit("error_message", "Room not found!");
-      if (room.mode === MODES.ROYALE) return socket.emit("error_message", "Use Royale join for this room!");
 
+      // 1. ROUTE TO ROYALE
+      if (room.mode === MODES.ROYALE) {
+        RoomManager.joinRoyaleByCode(io, socket, code, room, playerName);
+        return;
+      }
+
+      // 2. ROUTE TO CLASSIC 1v1
       if (room.p2 && room.p2 !== socket.id) return socket.emit("error_message", "Room is full!");
       if (room.p1 === socket.id) return socket.emit("error_message", "Already in room!");
 
       if (!room.p2) {
         room.p2 = socket.id;
         if (!room.p2Key) room.p2Key = "p2_" + randId(18);
+        if (playerName) room.p2Name = playerName; // Update name immediately if provided
 
         socket.join(code);
-        socket.emit("joined_room", { code, role: "p2", playerKey: room.p2Key });
+        socket.emit("joined_room", { code, role: "p2", playerKey: room.p2Key, mode: MODES.CLASSIC });
 
         if (room.p1) io.to(room.p1).emit("opponent_joined");
         io.to(code).emit("names_update", { p1: room.p1Name, p2: room.p2Name });
@@ -115,8 +133,9 @@ module.exports = (io) => {
         return;
       }
 
+      // Re-ack if already p2
       socket.join(code);
-      socket.emit("joined_room", { code, role: "p2", playerKey: room.p2Key });
+      socket.emit("joined_room", { code, role: "p2", playerKey: room.p2Key, mode: MODES.CLASSIC });
     });
 
     // Rejoin (Classic or Royale) by playerKey
@@ -169,20 +188,18 @@ module.exports = (io) => {
     });
 
     // Start Royale game (host only)
-    socket.on("start_royale", ({ roomCode } = {}) => {
+    socket.on("start_royale", ({ roomCode, config } = {}) => {
       const code = normalizeCode(roomCode);
       const room = RoomManager.getRoom(code);
       if (!room || room.mode !== MODES.ROYALE) return;
 
-      // Only host can start (socket id must match current hostId)
       if (room.hostId !== socket.id) return;
 
-      // Minimum 2 connected players
       const connectedCount = room.players.filter((p) => p.connected).length;
       if (connectedCount < 2) return socket.emit("error_message", "Need at least 2 players!");
 
-      // Combined manager version supports requesterId as optional 4th arg; but calling with 3 is fine too.
-      RoomManager.startRoyaleGame(io, room.code, room, socket.id);
+      // Pass the config (e.g. { totalRounds: 10 })
+      RoomManager.startRoyaleGame(io, room.code, room, socket.id, config);
     });
 
     // Ready (Classic only; Royale uses host start)

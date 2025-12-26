@@ -9,8 +9,22 @@ import { Picking } from './components/game/Picking';
 import { Racing } from './components/game/Racing';
 import { RoundResult } from './components/game/RoundResult';
 import { GameOver } from './components/game/GameOver';
+import { Moon, Sun } from 'lucide-react';
 
 export default function App() {
+  const [theme, setTheme] = useState(() => localStorage.getItem('wr_theme') || 'dark');
+
+  useEffect(() => {
+    const root = window.document.documentElement;
+    root.classList.remove('light', 'dark');
+    root.classList.add(theme);
+    localStorage.setItem('wr_theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+  };
+
   const [playerName, setPlayerName] = useState(() => localStorage.getItem('wr_name') || '');
   useEffect(() => {
     if (playerName) localStorage.setItem('wr_name', playerName);
@@ -35,16 +49,14 @@ export default function App() {
     requestRematch,
     acceptMatch,
     declineMatch,
-    leaveRoom, // FIX: you used leaveRoom below but never destructured it
+    leaveRoom,
   } = useGameSocket(playerName, playSfx, addToast);
 
   const [showSound, setShowSound] = useState(false);
-
-  // --- PERSISTENT INPUT STATE ---
   const [globalInput, setGlobalInput] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // --- FOCUS MANAGEMENT ---
+  // Focus management
   useEffect(() => {
     const activePhases = ['PRE', 'PICKING', 'RACING'] as const;
     const needsKeyboard = activePhases.includes(state.phase as any);
@@ -85,7 +97,7 @@ export default function App() {
     if (state.phase === 'RACING') {
       const next = val.toUpperCase();
       setGlobalInput(next);
-      sendTyping(next.length > 0); // FIX: was using raw `val.length`
+      sendTyping(next.length > 0);
     }
   };
 
@@ -112,8 +124,18 @@ export default function App() {
   };
 
   return (
-    <div onClick={ensureFocus} className="fixed inset-0 bg-slate-950 text-white font-sans overflow-hidden flex flex-col">
+    <div onClick={ensureFocus} className="fixed inset-0 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white font-sans overflow-hidden flex flex-col transition-colors duration-300">
       <ToastContainer toasts={toasts} />
+      
+      {/* Theme Toggle - Hidden during game */}
+      {state.phase === 'LOBBY' && (
+        <button 
+          onClick={toggleTheme}
+          className="fixed top-4 right-4 z-[100] p-2 rounded-full bg-white/80 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 shadow-sm hover:scale-105 transition"
+        >
+          {theme === 'dark' ? <Sun size={20} className="text-amber-400" /> : <Moon size={20} className="text-slate-600" />}
+        </button>
+      )}
 
       <form
         onSubmit={handleGlobalSubmit}
@@ -128,6 +150,13 @@ export default function App() {
           autoCapitalize="characters"
           spellCheck="false"
           style={{ fontSize: '16px' }}
+          // --- FIX: Force Focus on Blur during game ---
+          onBlur={() => {
+             const activePhases = ['PRE', 'PICKING', 'RACING'];
+             if (activePhases.includes(state.phase)) {
+                setTimeout(() => inputRef.current?.focus(), 0);
+             }
+          }}
         />
         <button type="submit" />
       </form>
@@ -135,7 +164,7 @@ export default function App() {
       {showSound && <SoundPanel onClose={() => setShowSound(false)} {...audioProps} />}
 
       {state.phase !== 'LOBBY' && (
-        <div className="shrink-0 z-40 w-full bg-slate-950/80 backdrop-blur-md border-b border-white/5">
+        <div className="shrink-0 z-40 w-full bg-white/80 dark:bg-slate-950/80 backdrop-blur-md border-b border-slate-200 dark:border-white/5 transition-colors">
           <GameHUD
             state={state}
             onSoundOpen={() => wrap(() => setShowSound(true))}
@@ -159,7 +188,7 @@ export default function App() {
               onQueue={() => requireName() && wrap(joinQueue)}
               onLeaveQueue={() => wrap(leaveQueue)}
               onReady={() => wrap(sendReady)}
-              onStartRoyale={() => wrap(startRoyale)}
+              onStartRoyale={(rounds) => wrap(() => startRoyale(rounds))}
               onAccept={() => wrap(acceptMatch)}
               onDecline={() => wrap(declineMatch)}
               onCopy={() =>
