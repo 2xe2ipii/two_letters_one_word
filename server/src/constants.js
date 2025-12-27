@@ -1,6 +1,6 @@
 module.exports = {
   WINNING_SCORE: 10,
-  MIN_LENGTH_1V1: 4,
+  MIN_LENGTH_1V1: 5,
   MIN_LENGTH_ROYALE: 4,
   
   ROYALE_ROUNDS: 20,
